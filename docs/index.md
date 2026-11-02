@@ -1,8 +1,14 @@
-# Overleaf Web MCP
+---
+title: Overleaf MCP Server for Claude, Codex & Cursor
+description: Connect Claude, Codex, and Cursor to Overleaf. Read, edit, compile, and review LaTeX projects through your own signed-in web session.
+---
 
-Let Claude, Codex, Cursor, or any [Model Context Protocol](https://modelcontextprotocol.io) client
-read, edit, compile, and review your Overleaf projects, signed in as you. Or do the same yourself
-from a shell or a TypeScript program.
+# Overleaf MCP Server for AI-Assisted LaTeX Editing
+
+Overleaf Web MCP connects Claude, Codex, Cursor, and other
+[Model Context Protocol](https://modelcontextprotocol.io) clients to your Overleaf projects. Read,
+edit, compile, and review LaTeX documents through your own signed-in web session, with no Git
+integration or premium plan required for the core workflow.
 
 [![npm version](https://img.shields.io/npm/v/overleaf-web-mcp?style=flat-square&logo=npm&label=npm&color=1F6FEB)](https://www.npmjs.com/package/overleaf-web-mcp)
 [![Total npm installs](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmhmdaskari%2Foverleaf-web-mcp%2Fbadges%2Fnpm-downloads.json&style=flat-square&label=installs)](https://www.npmjs.com/package/overleaf-web-mcp)
