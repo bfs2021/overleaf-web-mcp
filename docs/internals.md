@@ -160,8 +160,11 @@ try {
   since Overleaf merges a user's touching changes under the first id. On ShareJS, where a tracked
   delete is a point, the user's deletes at each point must also hold at least the text deleted
   there plus every earlier tracked delete that lands there: an untracked delete only moves an
-  earlier one beside it, whose text may hold the same characters. A write that landed untracked
-  is reported as `applied_untracked` and left in place.
+  earlier one beside it, whose text may hold the same characters. Tracked deletes that share a
+  point are expected in the new delete's text in either order: taken in one at a time they land
+  reversed, but once an earlier delete of the same update has taken one in, Overleaf has joined
+  each such pair across the document in order. A write that landed untracked is reported as
+  `applied_untracked` and left in place.
 - A comment is created as a REST thread and then attached through OT. An attachment that timed
   out, lost its socket after it was sent, or whose verification read failed is recovered by
   checking the new thread id and exact range; orphan cleanup happens only after the unchanged

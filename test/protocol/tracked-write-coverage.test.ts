@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
+import { createMinimalTextEdit } from '../../src/core/diff.js'
 import { buildHistoryTextOperation, buildShareJsOperation, type HistorySnapshot } from '../../src/protocol/ot.js'
 import { trackedWriteCoverage } from '../../src/protocol/tracked-changes.js'
 import { recordShareJsChanges, type ShareChange } from '../helpers/fake-overleaf.js'
@@ -174,6 +175,42 @@ describe('ShareJS tracked-write coverage', () => {
           [change('insert', { p: 1, i: 'iec' }), change('merged', { p: 4, d: 'dgbee' })]
         )
       ).toEqual(covered)
+    })
+
+    test('deletes sharing a point, joined by an earlier component of the update, are covered', () => {
+      // A document converted from history-OT can hold two tracked deletes at one point. Here the
+      // single span is split around the emoji it keeps. The first delete takes in 'old ', so
+      // Overleaf joins the pair at 17 in order, 'PQ', before the second delete takes it in; taken
+      // in one at a time, without the first, it would hold 'QP'.
+      const before = 'one two \u{1F600} three four'
+      const operation = [
+        { p: 0, d: 'one two ' },
+        { p: 2, d: ' three four' },
+      ]
+      expect(buildShareJsOperation(before, '\u{1F600}', [createMinimalTextEdit(before, '\u{1F600}')!])).toEqual(
+        operation
+      )
+      const pair = [change('p', { p: 17, d: 'P' }, 'someone-else'), change('q', { p: 17, d: 'Q' })]
+      const earlier = [change('old', { p: 4, d: 'old ' }), ...pair]
+      expect(
+        check(before, earlier, operation, [
+          change('old', { p: 0, d: 'one old two ' }),
+          change('p', { p: 2, d: ' three PQfour' }),
+        ])
+      ).toEqual(covered)
+      expect(
+        check(before, pair, operation, [
+          change(`${TC}000001`, { p: 0, d: 'one two ' }),
+          change('p', { p: 2, d: ' three QPfour' }),
+        ])
+      ).toEqual(covered)
+      // Recorded untracked, the deletes only move, and the pair is joined under its first author.
+      expect(
+        check(before, earlier, operation, [
+          change('old', { p: 0, d: 'old ' }),
+          change('p', { p: 2, d: 'PQ' }, 'someone-else'),
+        ])
+      ).toEqual({ uncoveredInserts: 0, uncoveredDeletes: 2 })
     })
 
     test('the simulated tracker records the same merge', () => {

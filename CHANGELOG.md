@@ -5,6 +5,32 @@ All notable changes to this project are documented here. This project follows
 shapes, and the command line's commands and exit codes may change in a minor or patch release;
 each such change is listed below.
 
+## [0.8.1] - 2026-11-02
+
+A fix to the check after a tracked write. No tool was added or removed, and no result shape
+changed; the server still registers 33 tools.
+
+### Fixed
+
+- **A tracked write is no longer reported as untracked on a legacy document whose tracked
+  deletions share a point.** A document converted from history-OT to the legacy editor (ShareJS),
+  or restored from history, can hold such pairs. When a tracked write to one deleted text on both
+  sides of a character outside the Basic Multilingual Plane that it kept, such as an emoji, it was
+  sent as two deletes. If the first took in an existing tracked deletion, Overleaf joined each pair
+  across the document, in order, before the second took that pair in, and the check after the write
+  expected the pair's text the other way round. A write that Overleaf had recorded as tracked
+  changes was then `PROTOCOL_UNSUPPORTED` with `details.kind: "applied_untracked"` (exit 4), and a
+  tracked `sync_directory` step failed, which also held back a mirror sync's deletes. The check
+  now accepts either order. A write that landed untracked is still reported, since an untracked
+  delete keeps none of the deleted text. Found by comparing the check with Overleaf's change
+  tracker on documents holding such pairs
+  ([#33](https://github.com/mhmdaskari/overleaf-web-mcp/issues/33)).
+
+### Documentation
+
+- The release steps say to move the Agent Skills' `npx --yes overleaf-web-mcp@X.Y` pin with a
+  minor release; `test/skills.test.ts` fails until it matches the package version.
+
 ## [0.8.0] - 2026-10-31
 
 Tracked-change review. Two new tools list a project's tracked changes, with their locations,
@@ -1344,6 +1370,7 @@ still registers 19 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/
 - First release: browser-assisted session capture, project and file management, revision-checked
   and section-level writing, compilation, and review comments.
 
+[0.8.1]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.8.1
 [0.8.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.8.0
 [0.7.1]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.7.1
 [0.7.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.7.0

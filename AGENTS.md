@@ -135,7 +135,9 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
 
 1. Update `CHANGELOG.md`. Set the same version in `package.json` (and `package-lock.json`, for
    example with `npm version X.Y.Z --no-git-tag-version`), `SERVER_VERSION` in
-   `src/version.ts`, and both `version` fields of `server.json`.
+   `src/version.ts`, and both `version` fields of `server.json`. A minor release also moves the
+   `npx --yes overleaf-web-mcp@X.Y` pin in `skills/*/SKILL.md`, `docs/cli.md`, and
+   `test/skills.test.ts`, which fails until it matches.
 2. Merge to `main` with CI green.
 3. Run the `Publish to npm` workflow on `main` with the version (`workflow_dispatch`). It checks
    that the version matches `package.json` and has a `CHANGELOG.md` section, re-runs the checks,

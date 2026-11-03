@@ -723,17 +723,23 @@ export function trackedWriteCoverage(input: TrackedWriteCoverageInput): TrackedW
   const exempt = beforeChanges
     .filter(change => change.type === 'insert')
     .map(change => ({ start: change.position, end: change.position + change.length }))
-  // Overleaf merges a tracked delete the new one spans into its text, spliced in at its point.
-  const expectedText = (piece: Span): string => {
-    let text = input.beforeContent.slice(piece.start, piece.end)
-    const inside = earlierDeletes
-      .filter(change => change.position > piece.start && change.position < piece.end)
-      .sort((left, right) => right.position - left.position)
-    for (const change of inside) {
-      const offset = change.position - piece.start
-      text = text.slice(0, offset) + change.text + text.slice(offset)
+  // Overleaf merges a tracked delete the new one spans into its text, spliced in at its point. Taken
+  // in one at a time, deletes that share a point land in reverse order; but once an earlier
+  // component of the update has taken one in, Overleaf has already joined every such group across
+  // the document, in order. Either text is accepted: an untracked delete holds neither.
+  const expectedTexts = (piece: Span): string[] => {
+    const inside = earlierDeletes.filter(change => change.position > piece.start && change.position < piece.end)
+    const points = [...new Set(inside.map(change => change.position))].sort((left, right) => right - left)
+    const spliced = (joined: boolean): string => {
+      let text = input.beforeContent.slice(piece.start, piece.end)
+      for (const point of points) {
+        const group = inside.filter(change => change.position === point).map(change => change.text)
+        const offset = point - piece.start
+        text = text.slice(0, offset) + (joined ? group : group.reverse()).join('') + text.slice(offset)
+      }
+      return text
     }
-    return text
+    return [spliced(false), spliced(true)]
   }
   // What the user's tracked deletes at each point must hold at least: the text deleted there, and
   // every earlier tracked delete that lands there, which a tracked delete takes in and an untracked
@@ -758,7 +764,7 @@ export function trackedWriteCoverage(input: TrackedWriteCoverageInput): TrackedW
       .join('')
     if (
       held.length < expectedLength.get(span.point)! ||
-      pieces[index]!.some(piece => !held.includes(expectedText(piece)))
+      pieces[index]!.some(piece => !expectedTexts(piece).some(text => held.includes(text)))
     ) {
       uncoveredDeletes += 1
     }

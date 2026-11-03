@@ -161,7 +161,9 @@ node scripts/npm-downloads.ts /tmp/npm-downloads.json   # Node 22.18 or newer ru
 
 1. Update `CHANGELOG.md`. Set the same version in `package.json` and `package-lock.json`, for
    example with `npm version X.Y.Z --no-git-tag-version`, in `SERVER_VERSION` in
-   `src/version.ts`, and in both `version` fields of `server.json`.
+   `src/version.ts`, and in both `version` fields of `server.json`. A minor release also moves the
+   `npx --yes overleaf-web-mcp@X.Y` pin in `skills/*/SKILL.md`, `docs/cli.md`, and
+   `test/skills.test.ts`, which fails until it matches.
 2. Merge to `main` with CI green.
 3. Publish, in either of two ways. Both run the `Publish to npm` workflow, which checks that the
    tag equals the package version and that `CHANGELOG.md` has a section for it, re-runs check,
