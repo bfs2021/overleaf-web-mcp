@@ -9,13 +9,13 @@
     "id": "1301032065"
   },
   "websiteUrl": "https://mhmdaskari.github.io/overleaf-web-mcp/",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "overleaf-web-mcp",
-      "version": "0.8.0",
+      "version": "0.8.1",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
