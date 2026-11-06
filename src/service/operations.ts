@@ -245,13 +245,21 @@ export function createOverleafService(runtime: OverleafServiceRuntime): Overleaf
           onProgress: guardProgress(context.onProgress),
         })
     ),
+    get_full_document: operation(
+      'get_full_document',
+      async input => await runtime.sections.getFullDocument(input.projectId, input.rootFilePath, input.maxDepth)
+    ),
     get_sections: operation(
       'get_sections',
-      async input => await runtime.sections.getSections(input.projectId, input.filePath)
+      async input =>
+        await runtime.sections.getSections(input.projectId, input.filePath, { followIncludes: input.followIncludes })
     ),
     get_section_content: operation(
       'get_section_content',
-      async input => await runtime.sections.getSectionContent(input.projectId, input.filePath, input.sectionId)
+      async input =>
+        await runtime.sections.getSectionContent(input.projectId, input.filePath, input.sectionId, {
+          followIncludes: input.followIncludes,
+        })
     ),
     write_section: operation(
       'write_section',
@@ -262,7 +270,8 @@ export function createOverleafService(runtime: OverleafServiceRuntime): Overleaf
           input.revision,
           input.sectionId,
           input.content,
-          input.writeMode
+          input.writeMode,
+          { followIncludes: input.followIncludes }
         )
     ),
     compile_project: operation(

@@ -28,6 +28,8 @@ export const ERROR_CODES = [
   'POLICY_DENIED',
   'REMOTE_ERROR',
   'REVIEW_UNSUPPORTED',
+  'INCLUDE_CYCLE',
+  'INCLUDE_DEPTH_EXCEEDED',
 ] as const
 
 export type ErrorCode = (typeof ERROR_CODES)[number]

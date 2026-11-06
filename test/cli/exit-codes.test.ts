@@ -30,6 +30,8 @@ const TABLE: Record<ErrorCode, { write: number; read: number }> = {
   PARTIAL_CLEANUP: { write: 1, read: 1 },
   REMOTE_ERROR: { write: 1, read: 1 },
   REVIEW_UNSUPPORTED: { write: 3, read: 3 },
+  INCLUDE_CYCLE: { write: 1, read: 1 },
+  INCLUDE_DEPTH_EXCEEDED: { write: 1, read: 1 },
 }
 
 describe('CLI exit codes', () => {

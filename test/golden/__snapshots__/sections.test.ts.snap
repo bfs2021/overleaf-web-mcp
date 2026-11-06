@@ -1,5 +1,91 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`get_full_document > a manuscript split across \\input and \\include, with directives it cannot follow 1`] = `
+{
+  "files": [
+    "main.tex",
+    "background.tex",
+    "methods.tex",
+  ],
+  "rootFilePath": "main.tex",
+  "sourceMap": [
+    {
+      "docId": "doc-1",
+      "filePath": "main.tex",
+      "flattenedEnd": 79,
+      "flattenedStart": 0,
+      "originalEnd": 79,
+      "originalStart": 0,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTEiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImVjNjk0YTYxZTRiOGEzY2Y3MzQ4YmY1NjlkMDI2OWZjZDU2NzYzNDg4M2E0NjU0YTA0ODdhYzdmOTdkYTlkZDQifQ",
+    },
+    {
+      "docId": "doc-2",
+      "filePath": "background.tex",
+      "flattenedEnd": 115,
+      "flattenedStart": 79,
+      "originalEnd": 36,
+      "originalStart": 0,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTIiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImNlYTMzN2EzNDg3ZjE3YTU4ZGJlODVkY2JiMjM0YjAyZDc0MTcxNjQzN2FjNDA2ZDQ1NWY1MjgwNzA4NDJhYWEifQ",
+    },
+    {
+      "docId": "doc-1",
+      "filePath": "main.tex",
+      "flattenedEnd": 116,
+      "flattenedStart": 115,
+      "originalEnd": 98,
+      "originalStart": 97,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTEiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImVjNjk0YTYxZTRiOGEzY2Y3MzQ4YmY1NjlkMDI2OWZjZDU2NzYzNDg4M2E0NjU0YTA0ODdhYzdmOTdkYTlkZDQifQ",
+    },
+    {
+      "docId": "doc-3",
+      "filePath": "methods.tex",
+      "flattenedEnd": 147,
+      "flattenedStart": 116,
+      "originalEnd": 31,
+      "originalStart": 0,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTMiLCJwcm90b2NvbCI6Imhpc3Rvcnktb3QiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImMzNWQzYTY3OGZmMjYyM2JkYzU5Yjg4MDBlNzRlMzRlZGQxY2Y4Y2MwNjRhNTQ3YmU1ZWJlZDA2ODBlZThlZmMifQ",
+    },
+    {
+      "docId": "doc-1",
+      "filePath": "main.tex",
+      "flattenedEnd": 219,
+      "flattenedStart": 147,
+      "originalEnd": 187,
+      "originalStart": 115,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTEiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImVjNjk0YTYxZTRiOGEzY2Y3MzQ4YmY1NjlkMDI2OWZjZDU2NzYzNDg4M2E0NjU0YTA0ODdhYzdmOTdkYTlkZDQifQ",
+    },
+  ],
+  "text": "\\documentclass{article}
+\\begin{document}
+\\section{Introduction}
+Opening words.
+\\subsection{Background}
+Prior work.
+
+\\section{Methods}
+We measured.
+
+\\input{missing} % not in the project
+\\input{figure.pdf}
+\\end{document}
+",
+  "unresolved": [
+    {
+      "file": "main.tex",
+      "line": 7,
+      "reason": "missing",
+      "target": "missing",
+    },
+    {
+      "file": "main.tex",
+      "line": 8,
+      "reason": "binary_file",
+      "target": "figure.pdf",
+    },
+  ],
+}
+`;
+
 exports[`get_section_content > a heading with an empty body 1`] = `
 {
   "content": "",
@@ -386,6 +472,107 @@ exports[`get_sections > an empty document 1`] = `
   "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTEiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ",
   "sections": [],
   "singleFileOnly": true,
+}
+`;
+
+exports[`section tools with followIncludes > get_section_content reads a section in an included file as that file holds it 1`] = `
+{
+  "content": "Prior work.
+",
+  "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTIiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImNlYTMzN2EzNDg3ZjE3YTU4ZGJlODVkY2JiMjM0YjAyZDc0MTcxNjQzN2FjNDA2ZDQ1NWY1MjgwNzA4NDJhYWEifQ",
+  "section": {
+    "bodyStart": 103,
+    "command": "subsection",
+    "end": 115,
+    "filePath": "background.tex",
+    "headingEnd": 102,
+    "id": "background.tex#subsection:0",
+    "index": 1,
+    "level": 3,
+    "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTIiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImNlYTMzN2EzNDg3ZjE3YTU4ZGJlODVkY2JiMjM0YjAyZDc0MTcxNjQzN2FjNDA2ZDQ1NWY1MjgwNzA4NDJhYWEifQ",
+    "spansFiles": false,
+    "starred": false,
+    "start": 79,
+    "title": "Background",
+  },
+}
+`;
+
+exports[`section tools with followIncludes > get_sections lists every file in the flattened order 1`] = `
+{
+  "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTEiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImVjNjk0YTYxZTRiOGEzY2Y3MzQ4YmY1NjlkMDI2OWZjZDU2NzYzNDg4M2E0NjU0YTA0ODdhYzdmOTdkYTlkZDQifQ",
+  "sections": [
+    {
+      "bodyStart": 64,
+      "command": "section",
+      "end": 116,
+      "filePath": "main.tex",
+      "headingEnd": 63,
+      "id": "main.tex#section:41",
+      "index": 0,
+      "level": 2,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTEiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImVjNjk0YTYxZTRiOGEzY2Y3MzQ4YmY1NjlkMDI2OWZjZDU2NzYzNDg4M2E0NjU0YTA0ODdhYzdmOTdkYTlkZDQifQ",
+      "spansFiles": true,
+      "starred": false,
+      "start": 41,
+      "title": "Introduction",
+    },
+    {
+      "bodyStart": 103,
+      "command": "subsection",
+      "end": 115,
+      "filePath": "background.tex",
+      "headingEnd": 102,
+      "id": "background.tex#subsection:0",
+      "index": 1,
+      "level": 3,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTIiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImNlYTMzN2EzNDg3ZjE3YTU4ZGJlODVkY2JiMjM0YjAyZDc0MTcxNjQzN2FjNDA2ZDQ1NWY1MjgwNzA4NDJhYWEifQ",
+      "spansFiles": false,
+      "starred": false,
+      "start": 79,
+      "title": "Background",
+    },
+    {
+      "bodyStart": 134,
+      "command": "section",
+      "end": 147,
+      "filePath": "methods.tex",
+      "headingEnd": 133,
+      "id": "methods.tex#section:0",
+      "index": 2,
+      "level": 2,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTMiLCJwcm90b2NvbCI6Imhpc3Rvcnktb3QiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImMzNWQzYTY3OGZmMjYyM2JkYzU5Yjg4MDBlNzRlMzRlZGQxY2Y4Y2MwNjRhNTQ3YmU1ZWJlZDA2ODBlZThlZmMifQ",
+      "spansFiles": false,
+      "starred": false,
+      "start": 116,
+      "title": "Methods",
+    },
+  ],
+  "singleFileOnly": false,
+  "unresolved": [
+    {
+      "file": "main.tex",
+      "line": 7,
+      "reason": "missing",
+      "target": "missing",
+    },
+    {
+      "file": "main.tex",
+      "line": 8,
+      "reason": "binary_file",
+      "target": "figure.pdf",
+    },
+  ],
+}
+`;
+
+exports[`section tools with followIncludes > write_section writes into the included history-OT file, and nothing else 1`] = `
+{
+  "filePath": "methods.tex",
+  "protocol": "history-ot",
+  "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTMiLCJwcm90b2NvbCI6Imhpc3Rvcnktb3QiLCJvdFZlcnNpb24iOjgsInNoYTI1NiI6IjFhOTc4ZTRkOTExY2YxY2U2YTk4NzY0MDA3NGI0MDYyODRhYTg2ZTg5MTViNzliMTIzYTcwZDMzMjE3YTRiOWMifQ",
+  "trackChangesActive": false,
+  "writeMode": "untracked",
 }
 `;
 
