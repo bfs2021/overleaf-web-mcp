@@ -60,6 +60,8 @@ revision you read first, so a collaborator's concurrent change is reported inste
 Edits can be recorded as Overleaf tracked changes.
 
 **Work by section.** Parse `\section` headings in a file, read one section, and replace one section.
+A manuscript split across `\input`, `\include`, `\subfile`, and `\import` can be read as one
+flattened document with a map back to each file, and worked on by section across its files.
 
 **Compile.** Build the project's configured root document, or any document you name, and get its
 errors and warnings by file and line, with a clear answer on whether it built cleanly. Read the

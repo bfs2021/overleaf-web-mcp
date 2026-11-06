@@ -1,6 +1,6 @@
 # Tool reference
 
-The server registers 33 tools. Names are `snake_case`. Each tool is also
+The server registers 34 tools. Names are `snake_case`. Each tool is also
 `overleaf-web-mcp call <name>` on the [command line](cli.md) and a camelCase method of
 `createOverleafClient` in the [TypeScript SDK](sdk.md), with the same parameters, results, and
 errors. Every tool except `auth_status`,
@@ -713,28 +713,99 @@ Returns `status`, `completed` (`{ path, type, entityId }`), `failed`
 
 ## LaTeX sections
 
-Section tools work on one file at a time. They recognize starred headings and optional titles,
-ignore `%` comments, the `verbatim`, `verbatim*`, `lstlisting`, `minted`, and `comment`
-environments, and inline `\verb`, `\verb*`, and `\lstinline` arguments, and never follow `\input`
-or `\include`. Inside those environments and arguments, `%` is literal text. Outside them, `\%`
-is a literal percent sign, while `\\%` is a line break followed by a comment. In the same way,
-`text\\section{X}` is a line break followed by the text `section{X}`, not a heading: the parity of
-the run of backslashes before a `%` or a heading name decides.
+Section tools work on one file at a time unless asked to follow includes. They recognize starred
+headings and optional titles, ignore `%` comments, the `verbatim`, `verbatim*`, `lstlisting`,
+`minted`, and `comment` environments, and inline `\verb`, `\verb*`, and `\lstinline` arguments,
+and by default never follow `\input` or `\include`. Inside those environments and arguments, `%`
+is literal text. Outside them, `\%` is a literal percent sign, while `\\%` is a line break followed
+by a comment. In the same way, `text\\section{X}` is a line break followed by the text
+`section{X}`, not a heading: the parity of the run of backslashes before a `%` or a heading name
+decides.
 
-### `get_sections` <small>read-only</small>
+### Documents split across files
 
-Parse the section headings of one file.
+`get_full_document` flattens a document the way `latexpand` does, and the three section tools
+work on that flattened text when called with `followIncludes: true`. These directives are
+followed, recursively:
+
+| Directive | Path tried |
+| --- | --- |
+| `\input{x}`, `\input x` | `x`, then `x.tex` |
+| `\include{x}` | `x.tex` only; skipped when an earlier `\includeonly` leaves it out |
+| `\subfile{x}` | `x`, then `x.tex`; only the text between its `\begin{document}` and `\end{document}` is taken in |
+| `\import{dir}{x}`, `\inputfrom{dir}{x}` | `dir/x`, then `dir/x.tex` |
+| `\includefrom{dir}{x}` | `dir/x.tex`, as `\include` |
+| `\subimport{dir}{x}`, `\subinputfrom{dir}{x}`, `\subincludefrom{dir}{x}` | as above, with `dir` relative to the including file |
+
+A path is looked up relative to the project root first, as Overleaf compiles from there, and
+then relative to the including file's folder; for `\subimport` and its relatives, the including
+file's folder comes first. Directives in `%` comments and verbatim text are skipped, as headings
+are. `\include` adds no page breaks to the flattened text: every character of it comes from a
+file. A directive that cannot be followed is left in the text as written and listed in
+`unresolved`, with one of these reasons:
+
+| `reason` | Meaning |
+| --- | --- |
+| `missing` | No text document at any candidate path, or the path leaves the project |
+| `binary_file` | The path names an uploaded binary file, not a text document |
+| `macro_argument` | The path uses a macro or a parameter such as `#1`, so it cannot be read from the source |
+| `excluded_by_includeonly` | An `\include` that the `\includeonly` list leaves out, as LaTeX would |
+
+A cycle of includes fails with `INCLUDE_CYCLE`, and `details.chain` lists the files in it.
+Includes nested deeper than `maxDepth` fail with `INCLUDE_DEPTH_EXCEEDED`, and a flattened text
+longer than 8,388,608 UTF-16 code units fails with `DOC_TOO_LARGE`.
+
+### `get_full_document` <small>read-only</small>
+
+Read a document with every file it includes put in place of its include directive.
 
 | Parameter | Required | Meaning |
 | --- | :---: | --- |
 | `projectId` | yes | Project id |
-| `filePath` | yes | Document to parse |
+| `rootFilePath` | no | Document to start from; defaults to the root document configured in Overleaf |
+| `maxDepth` | no | Levels of includes to follow below the root, 1 to 32; default 10 |
 
-Returns `sections`, `revision`, and `singleFileOnly: true`. Each section has an `id` to pass to
-the other two section tools, its `index` (its position among the file's headings, from 0), its
-`command` (`part`, `chapter`, `section`, `subsection`, `subsubsection`, `paragraph`, or
+Returns `rootFilePath`, `text`, `files` (every file visited, each once, in the order first
+visited), `unresolved` (`{ file, line, target, reason }`, `line` 1-based), `includeOnly` when a
+file sets an `\includeonly` list, and `sourceMap`. Each source-map entry is one run of `text`
+copied unchanged from one file:
+`{ flattenedStart, flattenedEnd, filePath, docId, originalStart, originalEnd, revision }`. The
+offsets are UTF-16 code units, half-open, into `text` and into the file's LF-normalized content.
+`revision` is the file's revision, as `read_file` returns it. To change something seen in the
+flattened text, find its entry, then write that file with `write_file`, or its section with
+`write_section`, against that revision. The flattened text is never written back anywhere. Each
+file is read on its own, so a file can change between two reads; every revision matches the text
+it was read with.
+
+### `get_sections` <small>read-only</small>
+
+Parse the section headings of one file, or of a document across its included files.
+
+| Parameter | Required | Meaning |
+| --- | :---: | --- |
+| `projectId` | yes | Project id |
+| `filePath` | yes | Document to parse; with `followIncludes`, the document to start from |
+| `followIncludes` | no | Follow include directives as `get_full_document` does; default `false` |
+
+Returns `sections`, `revision` (that of `filePath`), and `singleFileOnly`. Each section has an
+`id` to pass to the other two section tools, its `index` (its position among the headings, from
+0), its `command` (`part`, `chapter`, `section`, `subsection`, `subsubsection`, `paragraph`, or
 `subparagraph`), `level`, `starred`, `title`, optional `shortTitle`, and character offsets
-`start`, `headingEnd`, `bodyStart`, and `end` into the LF-normalized content.
+`start`, `headingEnd`, `bodyStart`, and `end`.
+
+By default `singleFileOnly` is `true` and the offsets are into the file's LF-normalized content.
+With `followIncludes: true`, `singleFileOnly` is `false`, the offsets are into the flattened text
+`get_full_document` returns, `unresolved` lists the directives that could not be followed, and
+each section adds:
+
+- `filePath`, the file that holds its heading;
+- `revision`, that file's revision, to pass to `write_section`;
+- `spansFiles`, `true` when text from another file falls inside the section. White space alone,
+  such as the line break after an `\input` line, does not count.
+
+Its `id` then names the file, as `path#command:offset`, with the heading's offset in that file. A
+section whose heading is in an included file ends, at the latest, where that file ends: the
+including file's text after the directive, such as `\end{document}`, is not part of it.
 
 ### `get_section_content` <small>read-only</small>
 
@@ -743,13 +814,19 @@ Read one section's body.
 | Parameter | Required | Meaning |
 | --- | :---: | --- |
 | `projectId` | yes | Project id |
-| `filePath` | yes | Document |
+| `filePath` | yes | Document; with `followIncludes`, the one `get_sections` started from |
 | `sectionId` | yes | From `get_sections` |
+| `followIncludes` | no | Pass `true` for an id from `get_sections` with `followIncludes: true`; default `false` |
 
-Returns `content` (the body text), the matching `section` record, and the document's current
-`revision`. A section's body runs from the line after its heading to the next heading at the same
-or a higher level. It therefore includes any nested subsections, and the last section's body runs
-to the end of the file, including `\end{document}`.
+Returns `content` (the body text), the matching `section` record, and the `revision` of the file
+the section is in. A section's body runs from the line after its heading to the next heading at
+the same or a higher level. It therefore includes any nested subsections, and the last section's
+body runs to the end of the file, including `\end{document}`.
+
+With `followIncludes: true`, a section that lies in one file is read as that file holds it, with
+any include directive in its body kept as written: exactly the text `write_section` replaces. A
+section with `spansFiles: true` is read as flattened text across its files, for reading only. An
+id that names a file, given without `followIncludes: true`, is `NOT_FOUND`.
 
 ### `write_section` <small>destructive</small>
 
@@ -762,16 +839,25 @@ that the next heading starts its own line.
 | Parameter | Required | Meaning |
 | --- | :---: | --- |
 | `projectId` | yes | Project id |
-| `filePath` | yes | Document |
-| `revision` | yes | From `get_sections`, `get_section_content`, or `read_file` |
+| `filePath` | yes | Document; with `followIncludes`, the one `get_sections` started from |
+| `revision` | yes | From `get_sections`, `get_section_content`, or `read_file`; with `followIncludes`, the section's `revision` |
 | `sectionId` | yes | Section to replace |
 | `content` | yes | New body |
 | `writeMode` | no | `untracked` (default) or `tracked` |
+| `followIncludes` | no | Pass `true` for an id from `get_sections` with `followIncludes: true`; default `false` |
 
 Returns the same fields as `write_file`. Fails with `REVISION_CONFLICT` if the document changed.
 The write follows `write_file`'s rules, including the refusal of content that adds a character
 outside the Basic Multilingual Plane on a ShareJS document and the recovery after a timeout or a
 lost socket.
+
+With `followIncludes: true`, the body is replaced in the one file that holds the section, through
+the same revision-checked write, and `filePath` in the result names that file; no other file is
+touched. The revision is checked against that file before the section is looked up, so a file
+changed since the sections were listed is `REVISION_CONFLICT` with `details.filePath`, and
+nothing is sent. A section with `spansFiles: true` is refused with `INVALID_ARGUMENT`,
+`details.kind: "spans_files"`, and `details.files`, before anything is sent: change each of its
+files with `write_file` instead.
 
 ## Compilation
 
