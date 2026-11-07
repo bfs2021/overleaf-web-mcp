@@ -9,6 +9,11 @@ export const DEFAULT_INCLUDE_DEPTH = 10
 export const MAX_INCLUDE_DEPTH = 32
 /** The longest flattened text returned, in UTF-16 code units, however many files it takes in. */
 export const MAX_FLATTENED_LENGTH = 8 * 1024 * 1024
+/**
+ * The most file visits one flatten makes, counting a file once for each time it is included. It
+ * bounds the work, and the source map, of an include graph that fans out without emitting text.
+ */
+export const MAX_INCLUDE_VISITS = 10_000
 
 /**
  * What a directive pulls in: `input` the named file, `include` the named `.tex` file (subject to
@@ -67,8 +72,7 @@ function joinFolder(folder: string, file: string): string {
  * skipping `%` comments and verbatim text as the section parser does. `\input` also takes the
  * unbraced TeX form, `\input chapter`.
  */
-export function findIncludeDirectives(source: string): IncludeDirective[] {
-  const masked = maskIgnored(source)
+export function findIncludeDirectives(source: string, masked = maskIgnored(source)): IncludeDirective[] {
   const directives: IncludeDirective[] = []
   for (const match of masked.matchAll(DIRECTIVE_PATTERN)) {
     const start = match.index
@@ -91,11 +95,12 @@ export function findIncludeDirectives(source: string): IncludeDirective[] {
       target = source.slice(cursor + 1, argument.end - 1)
       end = argument.end
     } else if (command === 'input') {
-      const bare = /[^\s{}%\\]+/uy
+      // `\input chapter`, or `\input\jobname.tex`, which is listed as a macro argument.
+      const bare = /[^\s{}%\\]+|\\(?:[A-Za-z@]+|.)[^\s{}%\\]*/uy
       bare.lastIndex = cursor
       const name = bare.exec(masked)?.[0]
       if (name === undefined) continue
-      target = name
+      target = source.slice(cursor, cursor + name.length)
       end = cursor + name.length
     } else {
       continue
@@ -161,6 +166,11 @@ export interface IncludeLoader {
 export interface FlattenedDocument {
   rootFilePath: string
   text: string
+  /**
+   * `text` with each file's comments and verbatim text blanked as that file alone reads, so a `%`
+   * comment on a file's last line never runs on into the text that follows the directive.
+   */
+  masked: string
   segments: FlattenedSegment[]
   /** Every file visited, each once, in the order first visited. */
   files: string[]
@@ -225,16 +235,18 @@ function includeOnlyName(name: string): string {
   return (projectPath('', stripQuotes(name.trim())) ?? name.trim()).replace(/\.tex$/u, '')
 }
 
-/** The region of a `subfiles` document that `\subfile` takes in: its document body, when it has one. */
-function subfileBody(content: string): [number, number] {
-  const masked = maskIgnored(content)
+/**
+ * The region of a `subfiles` document that `\subfile` takes in: its document body, up to the first
+ * `\end{document}` after `\begin{document}` as LaTeX reads it, or the whole file without one.
+ */
+function subfileBody(content: string, masked: string): [number, number] {
   const live = (pattern: RegExp): number[] =>
     [...masked.matchAll(pattern)].map(match => match.index).filter(index => backslashesBefore(masked, index) % 2 === 0)
   const begins = live(/\\begin\s*\{document\}/gu)
   const ends = live(/\\end\s*\{document\}/gu)
   const begin = begins[0]
-  const end = ends.at(-1)
-  if (begin === undefined || end === undefined || end < begin) return [0, content.length]
+  const end = begin === undefined ? undefined : ends.find(index => index > begin)
+  if (begin === undefined || end === undefined) return [0, content.length]
   const beginEnd = /\\begin\s*\{document\}/uy
   beginEnd.lastIndex = begin
   beginEnd.exec(masked)
@@ -250,10 +262,11 @@ function subfileBody(content: string): [number, number] {
 export async function flattenDocument(
   rootFilePath: string,
   loader: IncludeLoader,
-  options: { maxDepth?: number; maxLength?: number } = {}
+  options: { maxDepth?: number; maxLength?: number; maxVisits?: number } = {}
 ): Promise<FlattenedDocument> {
   const maxDepth = options.maxDepth ?? DEFAULT_INCLUDE_DEPTH
   const maxLength = options.maxLength ?? MAX_FLATTENED_LENGTH
+  const maxVisits = options.maxVisits ?? MAX_INCLUDE_VISITS
   const byPath = new Map(loader.entities.map(entity => [entity.path, entity]))
   const documents = new Map<string, LoadedDocument>()
   const pending = new Map<string, Promise<LoadedDocument>>()
@@ -265,6 +278,18 @@ export async function flattenDocument(
   let length = 0
   const visits: FlattenedVisit[] = []
   const parts: string[] = []
+  const maskedParts: string[] = []
+  // A file's text is fixed for the whole flatten, so it is masked and scanned once however often it is included.
+  const scans = new Map<string, { masked: string; directives: IncludeDirective[] }>()
+  const scan = (path: string, content: string) => {
+    let scanned = scans.get(path)
+    if (scanned === undefined) {
+      const masked = maskIgnored(content)
+      scanned = { masked, directives: findIncludeDirectives(content, masked) }
+      scans.set(path, scanned)
+    }
+    return scanned
+  }
 
   const load = async (path: string): Promise<LoadedDocument> => {
     let loading = pending.get(path)
@@ -285,7 +310,7 @@ export async function flattenDocument(
     if (length + (to - from) > maxLength) {
       throw new McpError(
         'DOC_TOO_LARGE',
-        `The flattened document would be longer than ${maxLength} UTF-16 code units. Lower maxDepth, or read the included files one at a time.`,
+        `The flattened document would be longer than ${maxLength} UTF-16 code units. Start from a file further down the includes, or read the included files one at a time with read_file.`,
         { details: { kind: 'flattened', limit: maxLength } }
       )
     }
@@ -300,6 +325,7 @@ export async function flattenDocument(
       instance,
     })
     parts.push(document.content.slice(from, to))
+    maskedParts.push(scan(path, document.content).masked.slice(from, to))
     length += to - from
   }
 
@@ -314,7 +340,7 @@ export async function flattenDocument(
     return { reason: binary ? 'binary_file' : 'missing' }
   }
 
-  const visit = async (path: string, chain: string[], region?: (content: string) => [number, number]) => {
+  const visit = async (path: string, chain: string[], subfile = false) => {
     if (chain.includes(path)) {
       const cycle = [...chain.slice(chain.indexOf(path)), path]
       throw new McpError('INCLUDE_CYCLE', `The include directives form a cycle: ${cycle.join(' -> ')}.`, {
@@ -329,14 +355,22 @@ export async function flattenDocument(
         { details: { maxDepth, chain: [...chain, path] } }
       )
     }
+    if (visits.length >= maxVisits) {
+      throw new McpError(
+        'DOC_TOO_LARGE',
+        `The include directives take in files more than ${maxVisits} times in all. Start from a file further down the includes, or read the included files one at a time with read_file.`,
+        { details: { kind: 'includes', limit: maxVisits } }
+      )
+    }
     const document = await load(path)
     if (!files.includes(path)) files.push(path)
     const instance = visits.length
     const visitRecord = { filePath: path, flattenedStart: length, flattenedEnd: length }
     visits.push(visitRecord)
-    const [from, to] = region?.(document.content) ?? [0, document.content.length]
+    const { masked, directives } = scan(path, document.content)
+    const [from, to] = subfile ? subfileBody(document.content, masked) : [0, document.content.length]
     let cursor = from
-    for (const directive of findIncludeDirectives(document.content)) {
+    for (const directive of directives) {
       if (directive.start < from || directive.end > to) continue
       if (directive.kind === 'includeonly') {
         includeOnlyList = directive.target
@@ -363,7 +397,7 @@ export async function flattenDocument(
         continue
       }
       emit(path, document, instance, cursor, directive.start)
-      await visit(resolved.path, [...chain, path], directive.kind === 'subfile' ? subfileBody : undefined)
+      await visit(resolved.path, [...chain, path], directive.kind === 'subfile')
       cursor = directive.end
     }
     emit(path, document, instance, cursor, to)
@@ -374,6 +408,7 @@ export async function flattenDocument(
   return {
     rootFilePath,
     text: parts.join(''),
+    masked: maskedParts.join(''),
     segments,
     files,
     unresolved,

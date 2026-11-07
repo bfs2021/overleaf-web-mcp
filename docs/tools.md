@@ -748,12 +748,23 @@ file. A directive that cannot be followed is left in the text as written and lis
 | --- | --- |
 | `missing` | No text document at any candidate path, or the path leaves the project |
 | `binary_file` | The path names an uploaded binary file, not a text document |
-| `macro_argument` | The path uses a macro or a parameter such as `#1`, so it cannot be read from the source |
+| `macro_argument` | The path uses a macro or a parameter such as `#1`, braced or not (`\input\chapterfile`), so it cannot be read from the source |
 | `excluded_by_includeonly` | An `\include` that the `\includeonly` list leaves out, as LaTeX would |
 
 A cycle of includes fails with `INCLUDE_CYCLE`, and `details.chain` lists the files in it.
-Includes nested deeper than `maxDepth` fail with `INCLUDE_DEPTH_EXCEEDED`, and a flattened text
-longer than 8,388,608 UTF-16 code units fails with `DOC_TOO_LARGE`.
+Includes nested deeper than `maxDepth` fail with `INCLUDE_DEPTH_EXCEEDED`; `maxDepth` is a limit,
+never a cut-off, so it cannot make a result shorter. Two limits bound the work, and both fail
+with `DOC_TOO_LARGE`: a flattened text longer than 8,388,608 UTF-16 code units
+(`details.kind: "flattened"`), and include directives that take in files more than 10,000 times
+in all, counting a file once for each time it is included (`details.kind: "includes"`). For
+either, start from a file further down the includes, or read the files one at a time with
+`read_file`.
+
+The flattened text joins each file's text to whatever follows its directive, with nothing in
+between, exactly as the files hold it. A `%` comment on the last line of a file that does not end
+with a line break therefore reads on into the following text if the flattened text is compiled as
+it is. TeX ends the comment with the file, and the section tools do the same: they read comments
+and verbatim text file by file, so such a comment never hides a heading after the directive.
 
 ### `get_full_document` <small>read-only</small>
 
@@ -801,11 +812,14 @@ each section adds:
 - `filePath`, the file that holds its heading;
 - `revision`, that file's revision, to pass to `write_section`;
 - `spansFiles`, `true` when text from another file falls inside the section. White space alone,
-  such as the line break after an `\input` line, does not count.
+  such as the line break after an `\input` line, does not count. A heading with an include
+  directive inside it, or one its file ends in the middle of, also spans files, even when the
+  included file is empty.
 
 Its `id` then names the file, as `path#command:offset`, with the heading's offset in that file. A
 section whose heading is in an included file ends, at the latest, where that file ends: the
-including file's text after the directive, such as `\end{document}`, is not part of it.
+including file's text after the directive, such as `\bibliography` or `\end{document}`, is part
+of no section.
 
 ### `get_section_content` <small>read-only</small>
 
@@ -854,8 +868,10 @@ lost socket.
 With `followIncludes: true`, the body is replaced in the one file that holds the section, through
 the same revision-checked write, and `filePath` in the result names that file; no other file is
 touched. The revision is checked against that file before the section is looked up, so a file
-changed since the sections were listed is `REVISION_CONFLICT` with `details.filePath`, and
-nothing is sent. A section with `spansFiles: true` is refused with `INVALID_ARGUMENT`,
+changed since the sections were listed is `REVISION_CONFLICT` with `details.filePath` and
+`details.liveRevision`, and nothing is sent; a token that is not a revision at all is
+`INVALID_ARGUMENT`, as without `followIncludes`. Do not add the including file's `\end{document}`
+to the body of a section in an included file: it is not part of that section. A section with `spansFiles: true` is refused with `INVALID_ARGUMENT`,
 `details.kind: "spans_files"`, and `details.files`, before anything is sent: change each of its
 files with `write_file` instead.
 

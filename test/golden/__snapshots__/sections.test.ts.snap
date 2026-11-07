@@ -86,6 +86,61 @@ We measured.
 }
 `;
 
+exports[`get_full_document > an \\includeonly list that leaves one \\include out 1`] = `
+{
+  "files": [
+    "main.tex",
+    "a.tex",
+  ],
+  "includeOnly": [
+    "a",
+  ],
+  "rootFilePath": "main.tex",
+  "sourceMap": [
+    {
+      "docId": "doc-1",
+      "filePath": "main.tex",
+      "flattenedEnd": 16,
+      "flattenedStart": 0,
+      "originalEnd": 16,
+      "originalStart": 0,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTEiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6IjhlMzU3NmE2ZWU3NDNiOGFmMDdjNjFhOTVkMmRkMzdlNzdhZDc5OTRiMTRlYmE1OWNiYzkxOGU5MjIzNTZlOGIifQ",
+    },
+    {
+      "docId": "doc-2",
+      "filePath": "a.tex",
+      "flattenedEnd": 27,
+      "flattenedStart": 16,
+      "originalEnd": 11,
+      "originalStart": 0,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTIiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6ImFhMmFjYjlmYzZlNTE4YzE2MGIzYThiMzJiOWY2YzMyMjY0NmUyOWFlMDU0YzZjNTBmOTA2OTMwZDIwMzcyYzgifQ",
+    },
+    {
+      "docId": "doc-1",
+      "filePath": "main.tex",
+      "flattenedEnd": 40,
+      "flattenedStart": 27,
+      "originalEnd": 40,
+      "originalStart": 27,
+      "revision": "eyJmb3JtYXQiOjEsInRva2VuVmVyc2lvbiI6MSwicHJvamVjdElkIjoicHJvamVjdC1pZCIsImRvY0lkIjoiZG9jLTEiLCJwcm90b2NvbCI6InNoYXJlanMiLCJvdFZlcnNpb24iOjcsInNoYTI1NiI6IjhlMzU3NmE2ZWU3NDNiOGFmMDdjNjFhOTVkMmRkMzdlNzdhZDc5OTRiMTRlYmE1OWNiYzkxOGU5MjIzNTZlOGIifQ",
+    },
+  ],
+  "text": "\\includeonly{a}
+Chapter A.
+
+\\include{b}
+",
+  "unresolved": [
+    {
+      "file": "main.tex",
+      "line": 3,
+      "reason": "excluded_by_includeonly",
+      "target": "b",
+    },
+  ],
+}
+`;
+
 exports[`get_section_content > a heading with an empty body 1`] = `
 {
   "content": "",

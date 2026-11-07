@@ -244,8 +244,9 @@ connection model and also offer tracked changes; what sets this project apart is
 lifecycle tools, the verified-write guarantees described above, and folder sync that, given the
 `planToken` from `plan_sync`, stops when either side drifted from the plan. The command line and
 the TypeScript client over the same engine shipped in 0.7.0, and accepting and rejecting tracked
-changes, on history-OT documents as well as ShareJS ones, in 0.8.0; the [roadmap](roadmap.md)
-plans multi-file documents next.
+changes, on history-OT documents as well as ShareJS ones, in 0.8.0, and multi-file documents
+(`get_full_document`, and `followIncludes` on the section tools, across `\input`, `\include`,
+`\subfile`, and `\import`) in 0.9.0; the [roadmap](roadmap.md) covers what comes before 1.0.0.
 
 Review-range investigation was informed by
 [Overleaf Comment Exporter](https://github.com/salokr/overleaf-comment-exporter). Real-time

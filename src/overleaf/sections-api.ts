@@ -10,6 +10,7 @@ import {
   type UnresolvedInclude,
 } from '../core/includes.js'
 import { AccessPolicy } from '../core/policy.js'
+import { decodeRevision } from '../core/revision.js'
 import { findSections, replaceSection, SECTION_COMMANDS, type LatexSection } from '../core/sections.js'
 import { normalizeLf } from '../core/text.js'
 import type { ReadFileResult, WriteFileResult, WriteMode } from './documents.js'
@@ -81,25 +82,28 @@ function includedSectionId(filePath: string, command: string, start: number): st
  * last run inside it.
  */
 function locateSections(document: FlattenedDocument): SectionLocation[] {
-  return findSections(document.text).map(parsed => {
+  // Masked file by file, so a comment on an included file's last line never hides what follows it.
+  return findSections(document.text, document.masked).map(parsed => {
     // The heading's first character is always copied from one file.
     const heading = mapFlattenedRange(document.segments, parsed.start, parsed.start + 1)[0]!
     const visit = document.visits[heading.instance]!
-    const section = { ...parsed, end: Math.min(parsed.end, visit.flattenedEnd) }
+    // The run the heading starts in. A heading that runs past its end, because an include
+    // directive sits inside it or its file ends mid-heading, cannot be replaced in one file.
+    const headingRun = document.segments.find(
+      segment =>
+        segment.instance === heading.instance &&
+        segment.flattenedStart <= parsed.start &&
+        parsed.start < segment.flattenedEnd
+    )!
+    const straddles = parsed.headingEnd > headingRun.flattenedEnd
+    const section = { ...parsed, end: Math.max(parsed.bodyStart, Math.min(parsed.end, visit.flattenedEnd)) }
     const covered = mapFlattenedRange(document.segments, section.start, section.end)
     const own = covered.filter(segment => segment.instance === heading.instance)
     const significant = covered.filter(
       segment => !/^\s*$/u.test(document.text.slice(segment.flattenedStart, segment.flattenedEnd))
     )
     const files = [...new Set(significant.map(segment => segment.filePath))]
-    const spansFiles = significant.some(segment => segment.instance !== heading.instance)
-    // The body starts in the heading's run, or right at its end when the heading closes the run.
-    const headingRun = document.segments.find(
-      segment =>
-        segment.instance === heading.instance &&
-        segment.flattenedStart <= section.start &&
-        section.start < segment.flattenedEnd
-    )!
+    const spansFiles = straddles || significant.some(segment => segment.instance !== heading.instance)
     const bodyStart =
       headingRun.originalStart + Math.min(section.bodyStart, headingRun.flattenedEnd) - headingRun.flattenedStart
     return {
@@ -111,7 +115,7 @@ function locateSections(document: FlattenedDocument): SectionLocation[] {
         spansFiles,
       },
       bodyStart,
-      end: own.at(-1)!.originalEnd,
+      end: Math.max(bodyStart, own.at(-1)!.originalEnd),
       files,
     }
   })
@@ -237,9 +241,10 @@ export class SectionsApi {
     writeMode: WriteMode = 'untracked',
     options: SectionOptions = {}
   ): Promise<WriteFileResult & { filePath?: string }> {
+    // Both paths read before they write, so both effects are checked before any request.
+    this.#policy.assertProject(projectId)
+    this.#policy.assertEffect('overleaf-read', 'overleaf-write')
     if (options.followIncludes === true) {
-      this.#policy.assertProject(projectId)
-      this.#policy.assertEffect('overleaf-read', 'overleaf-write')
       const document = await this.#flatten(projectId, filePath)
       const named = parseSectionId(sectionId, document.rootFilePath)
       const read = named === undefined ? undefined : document.documents.get(named.filePath)
@@ -247,10 +252,12 @@ export class SectionsApi {
       // Checked before the section is looked up: a change to its file can move its heading, and the
       // caller should learn that the file changed, not that the section is gone.
       if (read.revision !== revision) {
+        // A token that is not a revision at all is a malformed call, as on the single-file path.
+        decodeRevision(revision)
         throw new McpError(
           'REVISION_CONFLICT',
           `${named!.filePath} is not at the revision given: it changed since the sections were listed, or the revision is another file's. List the sections again with followIncludes: true and pass the section's revision.`,
-          { details: { filePath: named!.filePath } }
+          { details: { filePath: named!.filePath, liveRevision: read.revision } }
         )
       }
       const locations = findLocations(document, sectionId)

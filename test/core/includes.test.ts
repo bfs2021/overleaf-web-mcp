@@ -224,6 +224,50 @@ describe('flattenDocument', () => {
     expect(flat.unresolved).toEqual([])
   })
 
+  test('a \subfile ends at its first \end{document}, as LaTeX reads it, ignoring anything parked after', async () => {
+    const loader = project({
+      'main.tex': '\\begin{document}\n\\subfile{s}\n\\end{document}\n',
+      's.tex':
+        '\\documentclass[main]{subfiles}\n\\begin{document}\nReal\n\\end{document}\n\\section{Old draft}\n\\input{old}\n\\end{document}\n',
+      'old.tex': 'OLD',
+    })
+    const flat = await flattenDocument('main.tex', loader)
+    expect(flat.text).toBe('\\begin{document}\n\nReal\n\n\\end{document}\n')
+    expect(flat.files).toEqual(['main.tex', 's.tex'])
+  })
+
+  test('an unbraced \input of a macro is listed as a macro argument and left as written', async () => {
+    const main = 'a\n\\input\\chapterfile\n\\input \\jobname.bbl\nb\n'
+    const flat = await flattenDocument('main.tex', project({ 'main.tex': main }))
+    expect(flat.text).toBe(main)
+    expect(flat.unresolved).toEqual([
+      { file: 'main.tex', line: 2, target: '\\chapterfile', reason: 'macro_argument' },
+      { file: 'main.tex', line: 3, target: '\\jobname.bbl', reason: 'macro_argument' },
+    ])
+  })
+
+  test('masks each file on its own, so a comment on an included last line stops at that file', async () => {
+    const flat = await flattenDocument(
+      'main.tex',
+      project({ 'main.tex': '\\input{a}\\section{After}\n', 'a.tex': 'A\n% last line, no newline' })
+    )
+    expect(flat.text).toBe('A\n% last line, no newline\\section{After}\n')
+    expect(flat.masked).toHaveLength(flat.text.length)
+    expect(flat.masked).toContain('\\section{After}')
+    expect(flat.masked).not.toContain('last line')
+  })
+
+  test('include fan-out that emits no text is bounded by a visit budget, not run to exhaustion', async () => {
+    // Ten includes per file, ten levels deep: 10^10 visits without a budget, and no text at all.
+    const docs: Record<string, string> = { 'f10.tex': '' }
+    for (let level = 0; level < 10; level += 1) docs[`f${level}.tex`] = `\\input{f${level + 1}}`.repeat(10)
+    const error = await failure(flattenDocument('f0.tex', project(docs)))
+    expect(error.code).toBe('DOC_TOO_LARGE')
+    expect(error.details).toEqual({ kind: 'includes', limit: 10_000 })
+    const small = await failure(flattenDocument('f0.tex', project(docs), { maxVisits: 5 }))
+    expect(small.details).toEqual({ kind: 'includes', limit: 5 })
+  })
+
   test('a cycle is INCLUDE_CYCLE with the chain, before reading the repeated file again', async () => {
     const loader = project({ 'main.tex': '\\input{a}', 'a.tex': '\\input{b}', 'b.tex': '\\input{a}' })
     const error = await failure(flattenDocument('main.tex', loader))
@@ -247,5 +291,7 @@ describe('flattenDocument', () => {
     const error = await failure(flattenDocument('main.tex', project(docs), { maxLength: 25 }))
     expect(error.code).toBe('DOC_TOO_LARGE')
     expect(error.details).toEqual({ kind: 'flattened', limit: 25 })
+    // maxDepth cannot shorten the result, so the message does not suggest it.
+    expect(error.message).not.toMatch(/maxDepth/u)
   })
 })

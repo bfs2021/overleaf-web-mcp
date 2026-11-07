@@ -471,6 +471,21 @@ describe('get_full_document', () => {
     expectGolden('get_full_document', result)
   })
 
+  test('an \\includeonly list that leaves one \\include out', async () => {
+    const project = createProject({
+      'main.tex': { protocol: 'sharejs', content: '\\includeonly{a}\n\\include{a}\n\\include{b}\n' },
+      'a.tex': { protocol: 'sharejs', content: 'Chapter A.\n' },
+      'b.tex': { protocol: 'sharejs', content: 'Chapter B.\n' },
+    })
+    const result = await withService(
+      project,
+      async service => await service.get_full_document({ projectId: PROJECT, rootFilePath: 'main.tex' })
+    )
+    expect(result.includeOnly).toEqual(['a'])
+    expect(result.text).toBe('\\includeonly{a}\nChapter A.\n\n\\include{b}\n')
+    expectGolden('get_full_document', result)
+  })
+
   test('a cycle is INCLUDE_CYCLE, through the service', async () => {
     const project = createProject({
       'main.tex': { protocol: 'sharejs', content: '\\input{a}' },

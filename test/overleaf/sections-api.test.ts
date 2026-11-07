@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 import { McpError } from '../../src/core/errors.js'
+import { createRevision } from '../../src/core/revision.js'
 
 import { SectionsApi } from '../../src/overleaf/sections-api.js'
 
@@ -72,7 +73,16 @@ Line break then comment \\% \section{Commented After Linebreak}
 /** An in-memory project whose writes are revision-checked as Overleaf's are. */
 function includedProject(files: Record<string, string>) {
   const documents = new Map(Object.entries(files).map(([path, content]) => [path, { content, version: 1 }]))
-  const revisionOf = (path: string) => `${path}@${documents.get(path)!.version}`
+  const revisionOf = (path: string) => {
+    const document = documents.get(path)!
+    return createRevision({
+      projectId: 'p',
+      docId: path,
+      protocol: 'sharejs',
+      otVersion: document.version,
+      content: document.content,
+    })
+  }
   const api = {
     readFile: vi.fn(async (_projectId: string, filePath: string) => {
       const document = documents.get(filePath)
@@ -103,7 +113,7 @@ function includedProject(files: Record<string, string>) {
     rootDocPath: 'main.tex',
   }
   const sections = new SectionsApi(api, { getProjectTree: vi.fn(async () => tree) })
-  return { documents, api, sections }
+  return { documents, api, sections, revisionOf }
 }
 
 const SPLIT = {
@@ -124,10 +134,10 @@ const SPLIT = {
 
 describe('section tools with followIncludes', () => {
   test('lists the headings of every included file, each in its own file', async () => {
-    const { sections } = includedProject(SPLIT)
+    const { sections, revisionOf } = includedProject(SPLIT)
     const result = await sections.getSections('p', 'main.tex', { followIncludes: true })
     expect(result.singleFileOnly).toBe(false)
-    expect(result).toMatchObject({ revision: 'main.tex@1', unresolved: [] })
+    expect(result).toMatchObject({ revision: revisionOf('main.tex'), unresolved: [] })
     expect(
       result.sections.map(section => {
         const included = section as typeof section & { filePath: string; spansFiles: boolean }
@@ -142,14 +152,14 @@ describe('section tools with followIncludes', () => {
   })
 
   test('reads and writes a section that lies in one included file, through that file only', async () => {
-    const { sections, documents, api } = includedProject(SPLIT)
+    const { sections, documents, api, revisionOf } = includedProject(SPLIT)
     const listed = await sections.getSections('p', 'main.tex', { followIncludes: true })
     const background = listed.sections.find(section => section.title === 'Background') as unknown as {
       id: string
       revision: string
     }
     const read = await sections.getSectionContent('p', 'main.tex', background.id, { followIncludes: true })
-    expect(read).toMatchObject({ content: 'Prior work.\n', revision: 'sections/background.tex@1' })
+    expect(read).toMatchObject({ content: 'Prior work.\n', revision: revisionOf('sections/background.tex') })
 
     const written = await sections.writeSection(
       'p',
@@ -160,8 +170,11 @@ describe('section tools with followIncludes', () => {
       'untracked',
       { followIncludes: true }
     )
-    expect(written).toMatchObject({ filePath: 'sections/background.tex', revision: 'sections/background.tex@2' })
     expect(documents.get('sections/background.tex')!.content).toBe('\\subsection{Background}\nNewer work.\n')
+    expect(written).toMatchObject({
+      filePath: 'sections/background.tex',
+      revision: revisionOf('sections/background.tex'),
+    })
     expect(documents.get('main.tex')!.content).toBe(SPLIT['main.tex'])
     expect(api.writeFile).toHaveBeenCalledTimes(1)
   })
@@ -175,12 +188,14 @@ describe('section tools with followIncludes', () => {
   })
 
   test('refuses a section that spans files before anything is sent, and names the files', async () => {
-    const { sections, api } = includedProject(SPLIT)
+    const { sections, api, revisionOf } = includedProject(SPLIT)
     const read = await sections.getSectionContent('p', 'main.tex', 'main.tex#section:41', { followIncludes: true })
     // Reading a spanning section gives the flattened body, for reading only.
     expect(read.content).toBe('Opening words.\n\\subsection{Background}\nPrior work.\n\n')
     const failure = await sections
-      .writeSection('p', 'main.tex', 'main.tex@1', 'main.tex#section:41', 'x\n', 'untracked', { followIncludes: true })
+      .writeSection('p', 'main.tex', revisionOf('main.tex'), 'main.tex#section:41', 'x\n', 'untracked', {
+        followIncludes: true,
+      })
       .catch((error: unknown) => error)
     expect(failure).toMatchObject({
       code: 'INVALID_ARGUMENT',
@@ -246,5 +261,104 @@ describe('section tools with followIncludes', () => {
     })
     await expect(withTree({ entities }).getFullDocument('p', 'other.tex')).rejects.toMatchObject({ code: 'NOT_FOUND' })
     expect(api.readFile).not.toHaveBeenCalled()
+  })
+})
+
+describe('section tools with followIncludes: edge cases', () => {
+  test('a comment on an included file’s last line does not hide the heading after the directive', async () => {
+    const { sections } = includedProject({
+      'main.tex': '\\input{intro}\\input{methods}\n\\input{c}\\section{C}\nend\n',
+      'intro.tex': '\\section{Intro}\nHello.\n% end of intro',
+      'methods.tex': '\\section{Methods}\nWe did.\n',
+      'c.tex': 'c\n%c',
+    })
+    const result = await sections.getSections('p', 'main.tex', { followIncludes: true })
+    expect(result.sections.map(section => section.title)).toEqual(['Intro', 'Methods', 'C'])
+  })
+
+  test('a heading with an include inside it cannot be written, even when the included file is empty', async () => {
+    const { sections, api, revisionOf } = includedProject({
+      'main.tex': '\\section{Intro \\input{e}}\nold body\n\\section{B}\nx\n',
+      'e.tex': '',
+    })
+    const listed = await sections.getSections('p', 'main.tex', { followIncludes: true })
+    expect(listed.sections[0]).toMatchObject({ id: 'main.tex#section:0', spansFiles: true })
+    const failure = await sections
+      .writeSection('p', 'main.tex', revisionOf('main.tex'), 'main.tex#section:0', 'new\n', 'untracked', {
+        followIncludes: true,
+      })
+      .catch((error: unknown) => error)
+    expect(failure).toMatchObject({ code: 'INVALID_ARGUMENT', details: { kind: 'spans_files' } })
+    expect(api.writeFile).not.toHaveBeenCalled()
+  })
+
+  test('a heading whose file ends inside it spans files, and its body never ends before it starts', async () => {
+    const { sections, api, revisionOf } = includedProject({
+      'main.tex': '\\input{a}{Title}\nBody\n',
+      'a.tex': '\\section',
+    })
+    const listed = await sections.getSections('p', 'main.tex', { followIncludes: true })
+    const [section] = listed.sections as Array<{ spansFiles: boolean; bodyStart: number; end: number }>
+    expect(section).toMatchObject({ spansFiles: true })
+    expect(section!.end).toBeGreaterThanOrEqual(section!.bodyStart)
+    const failure = await sections
+      .writeSection('p', 'main.tex', revisionOf('a.tex'), 'a.tex#section:0', 'NEW\n', 'untracked', {
+        followIncludes: true,
+      })
+      .catch((error: unknown) => error)
+    expect(failure).toMatchObject({ code: 'INVALID_ARGUMENT', details: { kind: 'spans_files' } })
+    expect(api.writeFile).not.toHaveBeenCalled()
+  })
+
+  test('a stale revision carries the live one, and a malformed one is INVALID_ARGUMENT as on one file', async () => {
+    const { sections, documents, revisionOf } = includedProject(SPLIT)
+    const stale = revisionOf('sections/background.tex')
+    documents.get('sections/background.tex')!.version += 1
+    const conflict = await sections
+      .writeSection('p', 'main.tex', stale, 'sections/background.tex#subsection:0', 'x\n', 'untracked', {
+        followIncludes: true,
+      })
+      .catch((error: unknown) => error)
+    expect(conflict).toMatchObject({
+      code: 'REVISION_CONFLICT',
+      details: { filePath: 'sections/background.tex', liveRevision: revisionOf('sections/background.tex') },
+    })
+    const malformed = await sections
+      .writeSection('p', 'main.tex', 'garbage', 'sections/background.tex#subsection:0', 'x\n', 'untracked', {
+        followIncludes: true,
+      })
+      .catch((error: unknown) => error)
+    expect(malformed).toMatchObject({ code: 'INVALID_ARGUMENT' })
+  })
+
+  test('a tracked write reaches the included file as tracked, never untracked', async () => {
+    const { sections, api, revisionOf } = includedProject(SPLIT)
+    await sections.writeSection(
+      'p',
+      'main.tex',
+      revisionOf('sections/background.tex'),
+      'sections/background.tex#subsection:0',
+      'Tracked.\n',
+      'tracked',
+      { followIncludes: true }
+    )
+    expect(api.writeFile).toHaveBeenCalledWith(
+      'p',
+      'sections/background.tex',
+      expect.any(String),
+      '\\subsection{Background}\nTracked.\n',
+      'tracked'
+    )
+  })
+
+  test('get_full_document returns the \\includeonly list it applied', async () => {
+    const { sections } = includedProject({
+      'main.tex': '\\includeonly{a}\n\\include{a}\\include{b}',
+      'a.tex': 'A',
+      'b.tex': 'B',
+    })
+    const full = await sections.getFullDocument('p', 'main.tex')
+    expect(full.includeOnly).toEqual(['a'])
+    expect(full.unresolved).toEqual([{ file: 'main.tex', line: 2, target: 'b', reason: 'excluded_by_includeonly' }])
   })
 })
