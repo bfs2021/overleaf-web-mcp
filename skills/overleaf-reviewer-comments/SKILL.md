@@ -35,9 +35,9 @@ bare.
 ## Before you start
 
 - Node.js 20 or newer. Every command runs the published command line through npx, pinned to the
-  0.8 releases, for example `npx --yes overleaf-web-mcp@0.8 projects list`.
+  0.9 releases, for example `npx --yes overleaf-web-mcp@0.9 projects list`.
 - A saved Overleaf session. If there is none, or a command fails with `AUTH_EXPIRED`, ask the user
-  to run `npx --yes overleaf-web-mcp@0.8 login`, which opens a browser window for them to sign in,
+  to run `npx --yes overleaf-web-mcp@0.9 login`, which opens a browser window for them to sign in,
   and wait for them. Never try to sign in yourself.
 - Keep your working files (`read.json`, `draft.tex`, `selection.txt`, `message.txt`, request
   files) in a scratch folder of their own, never inside a folder that will be synced to the
@@ -54,7 +54,7 @@ bare.
 - Each command is a fresh session: it starts from the saved session, may show the account as
   online in the project while it runs, and remembers nothing afterwards. Revisions stay valid
   across commands.
-- `npx --yes overleaf-web-mcp@0.8 schema add_comment --input` prints the exact request format of
+- `npx --yes overleaf-web-mcp@0.9 schema add_comment --input` prints the exact request format of
   an operation. A request with an unknown or misspelled key is refused before anything is sent.
 
 | Exit | Meaning | What to do |
@@ -71,8 +71,8 @@ bare.
 ## 1. List the threads
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 projects list --query '<words from the project name>'
-npx --yes overleaf-web-mcp@0.8 comments list '<projectId>' --status open
+npx --yes overleaf-web-mcp@0.9 projects list --query '<words from the project name>'
+npx --yes overleaf-web-mcp@0.9 comments list '<projectId>' --status open
 ```
 
 To list the threads of one document, or to filter them, save a request as
@@ -83,7 +83,7 @@ To list the threads of one document, or to filter them, save a request as
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 call list_comments --request comments-request.json
+npx --yes overleaf-web-mcp@0.9 call list_comments --request comments-request.json
 ```
 
 - The project id is `projects[].id`; if several projects match, ask the user which one.
@@ -106,7 +106,7 @@ Save this request as `read-request.json`, with the thread's `filePath`:
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 call read_file --request read-request.json > read.json
+npx --yes overleaf-web-mcp@0.9 call read_file --request read-request.json > read.json
 node -e 'const fs = require("node:fs"); const [from, to] = process.argv.slice(1); const result = JSON.parse(fs.readFileSync(from, "utf8")); fs.writeFileSync(to, result.content); console.log(result.revision)' read.json draft.tex
 ```
 
@@ -126,7 +126,7 @@ and backslashes need no escaping:
 
 ```bash
 node -e 'const fs = require("node:fs"); const [request, field, from] = process.argv.slice(1); const body = JSON.parse(fs.readFileSync(request, "utf8")); body[field] = fs.readFileSync(from, "utf8"); fs.writeFileSync(request, JSON.stringify(body, null, 2))' reply.json content message.txt
-npx --yes overleaf-web-mcp@0.8 call reply_to_comment --request reply.json
+npx --yes overleaf-web-mcp@0.9 call reply_to_comment --request reply.json
 ```
 
 A reply is not idempotent: running it twice posts it twice. On exit 5, do not run it again; list
@@ -176,7 +176,7 @@ That writes `comment.json` in this form:
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 call add_comment --request comment.json
+npx --yes overleaf-web-mcp@0.9 call add_comment --request comment.json
 ```
 
 - If node reports that the selection does not occur exactly once, choose a longer passage.
@@ -204,7 +204,7 @@ a read (step 2) or from your last write to it.
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 call set_comment_status --request resolve.json
+npx --yes overleaf-web-mcp@0.9 call set_comment_status --request resolve.json
 ```
 
 - `"status": "open"` reopens a resolved thread.
@@ -231,7 +231,7 @@ node step printed:
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 call write_file --request write.json
+npx --yes overleaf-web-mcp@0.9 call write_file --request write.json
 ```
 
 - The result has the new `revision`; use it for a resolve on the same document.
@@ -242,7 +242,7 @@ On exit 4 or exit 5, first read the document again into new files, never over `d
 which keeps your edit:
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 call read_file --request read-request.json > live.json
+npx --yes overleaf-web-mcp@0.9 call read_file --request read-request.json > live.json
 node -e 'const fs = require("node:fs"); const [from, to] = process.argv.slice(1); const result = JSON.parse(fs.readFileSync(from, "utf8")); fs.writeFileSync(to, result.content); console.log(result.revision)' live.json live.tex
 ```
 

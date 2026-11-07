@@ -5,7 +5,7 @@ All notable changes to this project are documented here. This project follows
 shapes, and the command line's commands and exit codes may change in a minor or patch release;
 each such change is listed below.
 
-## [0.9.0] - Unreleased
+## [0.9.0] - 2026-11-07
 
 Multi-file documents. A manuscript split across `\input`, `\include`, `\subfile`, and `\import`
 can be read as one flattened document with a source map back to every file, and the section tools
@@ -78,6 +78,10 @@ more than 0.8.x. Planned in
 - The tool reference documents the directives followed, how paths resolve, the `unresolved`
   reasons, and the source map; the user guide, safety model, and command line guide list the new
   tool and error codes.
+- The three Agent Skills, and the command line page's examples, run
+  `npx --yes overleaf-web-mcp@0.9`, pinned to this minor version as they were pinned to 0.8. The
+  `overleaf-revise-manuscript` skill gains "Sections across included files", which works by
+  section across a manuscript split with `\input` or `\include` through `followIncludes`.
 
 ## [0.8.1] - 2026-11-02
 
@@ -1444,6 +1448,7 @@ still registers 19 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/
 - First release: browser-assisted session capture, project and file management, revision-checked
   and section-level writing, compilation, and review comments.
 
+[0.9.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.9.0
 [0.8.1]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.8.1
 [0.8.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.8.0
 [0.7.1]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.7.1

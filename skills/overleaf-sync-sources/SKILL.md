@@ -34,9 +34,9 @@ bare.
 ## Before you start
 
 - Node.js 20 or newer. Every command runs the published command line through npx, pinned to the
-  0.8 releases, for example `npx --yes overleaf-web-mcp@0.8 projects list`.
+  0.9 releases, for example `npx --yes overleaf-web-mcp@0.9 projects list`.
 - A saved Overleaf session. If there is none, or a command fails with `AUTH_EXPIRED`, ask the user
-  to run `npx --yes overleaf-web-mcp@0.8 login`, which opens a browser window for them to sign in,
+  to run `npx --yes overleaf-web-mcp@0.9 login`, which opens a browser window for them to sign in,
   and wait for them. Never try to sign in yourself.
 - Keep request files, results, and backups in a scratch folder outside the folder you sync, or
   they are uploaded with it, and run the commands from that scratch folder. Local paths in
@@ -52,7 +52,7 @@ bare.
   online in the project while it runs, and remembers nothing afterwards. Plan tokens stay valid
   across commands. Never loop over files with one command each: use one `sync_directory` call,
   or one `batch_upload` call for a list of files.
-- `npx --yes overleaf-web-mcp@0.8 schema batch_upload --input` prints the exact request format of
+- `npx --yes overleaf-web-mcp@0.9 schema batch_upload --input` prints the exact request format of
   an operation. A request with an unknown or misspelled key is refused before anything is sent.
 
 | Exit | Meaning | What to do |
@@ -69,8 +69,8 @@ bare.
 ## 1. Find the project
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 projects list --query '<words from the project name>'
-npx --yes overleaf-web-mcp@0.8 tree '<projectId>'
+npx --yes overleaf-web-mcp@0.9 projects list --query '<words from the project name>'
+npx --yes overleaf-web-mcp@0.9 tree '<projectId>'
 ```
 
 The project id is `projects[].id`; if several projects match, ask the user which one. `tree`
@@ -86,7 +86,7 @@ Save the plan request as `plan-request.json`:
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 call plan_sync --request plan-request.json > plan.json
+npx --yes overleaf-web-mcp@0.9 call plan_sync --request plan-request.json > plan.json
 ```
 
 - `localFolderPath` is synced as a whole. `destinationFolderPath` is the project folder it
@@ -115,7 +115,7 @@ Before a mirror sync, or anything that replaces files, offer a zip backup of the
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 call download_project_zip --request backup.json
+npx --yes overleaf-web-mcp@0.9 call download_project_zip --request backup.json
 ```
 
 The folder must exist. An existing file is never replaced unless the request adds
@@ -140,7 +140,7 @@ and let node copy the plan token from `plan.json`, so it is never retyped:
 
 ```bash
 node -e 'const fs = require("node:fs"); const [request, field, from] = process.argv.slice(1); const value = JSON.parse(fs.readFileSync(from, "utf8"))[field]; if (typeof value !== "string") throw new Error(from + " has no " + field); const body = JSON.parse(fs.readFileSync(request, "utf8")); body[field] = value; fs.writeFileSync(request, JSON.stringify(body, null, 2))' apply.json planToken plan.json
-npx --yes overleaf-web-mcp@0.8 call sync_directory --request apply.json > result.json
+npx --yes overleaf-web-mcp@0.9 call sync_directory --request apply.json > result.json
 ```
 
 - `"mode": "additive"` uploads and writes, and deletes nothing.
@@ -167,7 +167,7 @@ npx --yes overleaf-web-mcp@0.8 call sync_directory --request apply.json > result
 
 ```bash
 node -e 'const fs = require("node:fs"); const [request, field, from] = process.argv.slice(1); const value = JSON.parse(fs.readFileSync(from, "utf8"))[field]; if (typeof value !== "string") throw new Error(from + " has no " + field); const body = JSON.parse(fs.readFileSync(request, "utf8")); body[field] = value; fs.writeFileSync(request, JSON.stringify(body, null, 2))' apply.json planToken result.json
-npx --yes overleaf-web-mcp@0.8 call sync_directory --request apply.json > result.json
+npx --yes overleaf-web-mcp@0.9 call sync_directory --request apply.json > result.json
 ```
 
 - In mirror mode, `confirmDeleteCount` must then equal the deletes still outstanding (the
@@ -193,7 +193,7 @@ the full project path, file name included; missing folders are created.
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 call batch_upload --request upload.json
+npx --yes overleaf-web-mcp@0.9 call batch_upload --request upload.json
 ```
 
 - `"onConflict": "fail"` (the default) refuses the whole call, before anything is uploaded, when
@@ -218,7 +218,7 @@ npx --yes overleaf-web-mcp@0.8 call batch_upload --request upload.json
 Compile once to check the project still builds, and judge it by `summary.builtCleanly`:
 
 ```bash
-npx --yes overleaf-web-mcp@0.8 compile run '<projectId>'
+npx --yes overleaf-web-mcp@0.9 compile run '<projectId>'
 ```
 
 ## Gotchas
