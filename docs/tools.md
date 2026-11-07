@@ -748,7 +748,7 @@ file. A directive that cannot be followed is left in the text as written and lis
 | --- | --- |
 | `missing` | No text document at any candidate path, or the path leaves the project |
 | `binary_file` | The path names an uploaded binary file, not a text document |
-| `macro_argument` | The path uses a macro or a parameter such as `#1`, braced or not (`\input\chapterfile`), so it cannot be read from the source |
+| `macro_argument` | The path uses a macro or a parameter such as `#1`, braced or not (`\input\chapterfile`, on the same line), so it cannot be read from the source. `\input` used as a token, as in `\let\oldinput\input`, is no directive |
 | `excluded_by_includeonly` | An `\include` that the `\includeonly` list leaves out, as LaTeX would |
 
 A cycle of includes fails with `INCLUDE_CYCLE`, and `details.chain` lists the files in it.
@@ -840,7 +840,9 @@ body runs to the end of the file, including `\end{document}`.
 With `followIncludes: true`, a section that lies in one file is read as that file holds it, with
 any include directive in its body kept as written: exactly the text `write_section` replaces. A
 section with `spansFiles: true` is read as flattened text across its files, for reading only. An
-id that names a file, given without `followIncludes: true`, is `NOT_FOUND`.
+id that names a file, given without `followIncludes: true`, is `NOT_FOUND`, and so is a
+single-file id such as `section:17` given with it: the two modes end a body in different places,
+so a body read in one mode and written in the other could drop or repeat an include directive.
 
 ### `write_section` <small>destructive</small>
 

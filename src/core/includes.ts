@@ -49,6 +49,10 @@ const DIRECTIVE_COMMANDS: Record<string, { kind: DirectiveKind; folderArgument?:
   subincludefrom: { kind: 'include', folderArgument: 'relative' },
 }
 
+// \input as the operand of an assignment or a test, as in `\let\oldinput\input` or `\ifx\input\undefined`.
+const TOKEN_CONTEXT =
+  /\\(?:let|ifx|def|gdef|edef|xdef|show|meaning|string|noexpand|expandafter)\s*(?:\\[A-Za-z@]+\s*=?\s*)?$/u
+
 // A name that continues with a letter or `@` is another command, such as \inputencoding or \input@path.
 const DIRECTIVE_PATTERN = new RegExp(String.raw`\\(${Object.keys(DIRECTIVE_COMMANDS).join('|')})(?![A-Za-z@])\*?`, 'gu')
 
@@ -79,6 +83,8 @@ export function findIncludeDirectives(source: string, masked = maskIgnored(sourc
     // After an odd run, this backslash ends a `\\` line break, so the name that follows is text.
     if (backslashesBefore(masked, start) % 2 === 1) continue
     const command = match[1]!
+    // A command used as a token, not called, includes nothing.
+    if (TOKEN_CONTEXT.test(masked.slice(Math.max(0, start - 64), start))) continue
     const { kind, folderArgument } = DIRECTIVE_COMMANDS[command]!
     let cursor = skipWhitespace(masked, start + match[0].length)
     let folder: string | undefined
@@ -94,8 +100,9 @@ export function findIncludeDirectives(source: string, masked = maskIgnored(sourc
     if (argument) {
       target = source.slice(cursor + 1, argument.end - 1)
       end = argument.end
-    } else if (command === 'input') {
-      // `\input chapter`, or `\input\jobname.tex`, which is listed as a macro argument.
+    } else if (command === 'input' && !masked.slice(start + match[0].length, cursor).includes('\n')) {
+      // `\input chapter`, or `\input\jobname.tex`, which is listed as a macro argument. The
+      // unbraced name must be on the same line, so a command on the next line is never taken for one.
       const bare = /[^\s{}%\\]+|\\(?:[A-Za-z@]+|.)[^\s{}%\\]*/uy
       bare.lastIndex = cursor
       const name = bare.exec(masked)?.[0]

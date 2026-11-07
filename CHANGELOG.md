@@ -27,16 +27,17 @@ more than 0.8.x. Planned in
   `includeOnly` when set, a `sourceMap` of `{ flattenedStart, flattenedEnd, filePath, docId,
   originalStart, originalEnd, revision }` runs, and `unresolved` directives `{ file, line, target,
   reason }`, where `reason` is `missing`, `binary_file`, `macro_argument` (braced or not, as in
-  `\input\chapterfile`), or `excluded_by_includeonly`. A directive that cannot be followed stays in
-  the text as written instead of failing the call. The text joins each file to what follows its
-  directive with nothing in between, exactly as the files hold it. Each file is read through the
-  same read as `read_file`, so each `revision` routes an edit back through `write_file` or
-  `write_section`.
+  `\input\chapterfile` on one line; `\input` used as a token, as in `\let\oldinput\input`, includes
+  nothing), or `excluded_by_includeonly`. A directive that cannot be followed stays in the text as
+  written instead of failing the call. The text joins each file to what follows its directive with
+  nothing in between, exactly as the files hold it. Each file is read through the same read as
+  `read_file`, so each `revision` routes an edit back through `write_file` or `write_section`.
 - **`followIncludes`** on `get_sections`, `get_section_content`, and `write_section`, default
   `false`. With it, `filePath` is the document to start from and the headings of every included
   file are listed in reading order. Each section adds `filePath` (the file holding its heading),
   `revision` (that file's), and `spansFiles`, its offsets are into the flattened text, and its `id`
-  names the file, as `path#command:offset`. `get_sections` also returns `unresolved`. A section
+  names the file, as `path#command:offset`; an id from one mode is `NOT_FOUND` in the other, since
+  the two modes end a body in different places. `get_sections` also returns `unresolved`. A section
   whose heading is in an included file ends at the latest where that file ends, and the including
   file's text after the directive belongs to no section. Comments and verbatim text are read file
   by file, as TeX reads them, so a `%` comment on the last line of an included file never hides a
@@ -68,9 +69,9 @@ more than 0.8.x. Planned in
   document**, with or without `followIncludes`. Under a policy without `overleaf-write`, 0.8.x
   joined the project and read the document before refusing the write with `POLICY_DENIED`; now
   nothing is sent. The error is the same.
-- A section id passed to `get_section_content` or `write_section` that is not found now says how
-  to list the sections again, and, for an id that names a file, that `followIncludes: true` is
-  needed. The code is still `NOT_FOUND`.
+- A section id passed to `get_section_content` or `write_section` that is not found now says how to
+  list the sections again, and, for an id that names a file, that `followIncludes: true` is needed.
+  The code is still `NOT_FOUND`.
 
 ### Documentation
 

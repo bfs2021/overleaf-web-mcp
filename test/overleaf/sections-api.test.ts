@@ -223,14 +223,22 @@ describe('section tools with followIncludes', () => {
     expect(methods.content).toBe('We measured twice.\n\\subsection{Setup}\nThe setup.\n')
   })
 
-  test('an id that names a file needs followIncludes, and a single-file id names the start file', async () => {
-    const { sections } = includedProject(SPLIT)
+  test('an id that names a file needs followIncludes, and followIncludes needs an id that names a file', async () => {
+    const { sections, api, revisionOf } = includedProject(SPLIT)
     const failure = await sections
       .getSectionContent('p', 'main.tex', 'sections/background.tex#subsection:0')
       .catch((error: unknown) => error)
     expect(failure).toMatchObject({ code: 'NOT_FOUND', message: expect.stringMatching(/followIncludes: true/u) })
-    const single = await sections.getSectionContent('p', 'main.tex', 'section:41', { followIncludes: true })
-    expect(single.section).toMatchObject({ title: 'Introduction', filePath: 'main.tex' })
+    // The two modes end a body in different places, so an id from one mode is refused in the other.
+    const single = await sections
+      .getSectionContent('p', 'main.tex', 'section:41', { followIncludes: true })
+      .catch((error: unknown) => error)
+    expect(single).toMatchObject({ code: 'NOT_FOUND', message: expect.stringMatching(/path#command:offset/u) })
+    const write = await sections
+      .writeSection('p', 'main.tex', revisionOf('main.tex'), 'section:41', 'x\n', 'untracked', { followIncludes: true })
+      .catch((error: unknown) => error)
+    expect(write).toMatchObject({ code: 'NOT_FOUND' })
+    expect(api.writeFile).not.toHaveBeenCalled()
   })
 
   test('get_full_document defaults to the root document and returns the public source map', async () => {

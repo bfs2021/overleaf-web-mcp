@@ -224,7 +224,7 @@ describe('flattenDocument', () => {
     expect(flat.unresolved).toEqual([])
   })
 
-  test('a \subfile ends at its first \end{document}, as LaTeX reads it, ignoring anything parked after', async () => {
+  test('a \\subfile ends at its first \\end{document}, as LaTeX reads it, ignoring anything parked after', async () => {
     const loader = project({
       'main.tex': '\\begin{document}\n\\subfile{s}\n\\end{document}\n',
       's.tex':
@@ -236,7 +236,7 @@ describe('flattenDocument', () => {
     expect(flat.files).toEqual(['main.tex', 's.tex'])
   })
 
-  test('an unbraced \input of a macro is listed as a macro argument and left as written', async () => {
+  test('an unbraced \\input of a macro is listed as a macro argument and left as written', async () => {
     const main = 'a\n\\input\\chapterfile\n\\input \\jobname.bbl\nb\n'
     const flat = await flattenDocument('main.tex', project({ 'main.tex': main }))
     expect(flat.text).toBe(main)
@@ -244,6 +244,18 @@ describe('flattenDocument', () => {
       { file: 'main.tex', line: 2, target: '\\chapterfile', reason: 'macro_argument' },
       { file: 'main.tex', line: 3, target: '\\jobname.bbl', reason: 'macro_argument' },
     ])
+  })
+
+  test('\\input used as a token, or followed by a name on the next line, includes nothing', async () => {
+    const source = [
+      '\\let\\oldinput\\input',
+      '\\renewcommand{\\input}[1]{\\oldinput{#1}}',
+      '\\let\\input\\@@input',
+      '\\ifx\\input\\undefined\\fi',
+      '\\input',
+      '\\section{Not a file}',
+    ].join('\n')
+    expect(findIncludeDirectives(source)).toEqual([])
   })
 
   test('masks each file on its own, so a comment on an included last line stops at that file', async () => {

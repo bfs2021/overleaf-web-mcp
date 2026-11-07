@@ -121,21 +121,20 @@ function locateSections(document: FlattenedDocument): SectionLocation[] {
   })
 }
 
-/** The file, command, and heading offset a section id names: `path#command:offset`, or a single-file id in the root file. */
-function parseSectionId(
-  sectionId: string,
-  rootFilePath: string
-): { filePath: string; command: string; offset: number } | undefined {
+/**
+ * The file, command, and heading offset a `path#command:offset` id names. A single-file id is not
+ * accepted here: the same heading's body runs to a different place with followIncludes, so a body
+ * read in one mode and written in the other could drop or repeat an include directive.
+ */
+function parseSectionId(sectionId: string): { filePath: string; command: string; offset: number } | undefined {
   const included = INCLUDED_ID.exec(sectionId)
-  if (included !== null) return { filePath: included[1]!, command: included[2]!, offset: Number(included[3]) }
-  const single = SINGLE_FILE_ID.exec(sectionId)
-  if (single !== null) return { filePath: rootFilePath, command: single[1]!, offset: Number(single[2]) }
-  return undefined
+  if (included === null) return undefined
+  return { filePath: included[1]!, command: included[2]!, offset: Number(included[3]) }
 }
 
 /** Every visit's location of the section an id names; a file included twice holds it twice. */
 function findLocations(document: FlattenedDocument, sectionId: string): SectionLocation[] {
-  const parsed = parseSectionId(sectionId, document.rootFilePath)
+  const parsed = parseSectionId(sectionId)
   if (parsed === undefined) return []
   const id = includedSectionId(parsed.filePath, parsed.command, parsed.offset)
   return locateSections(document).filter(location => location.section.id === id)
@@ -145,7 +144,9 @@ function sectionNotFound(sectionId: string, followIncludes: boolean): McpError {
   const hint =
     !followIncludes && sectionId.includes('#')
       ? ' Section ids that name a file come from get_sections with followIncludes: true; pass followIncludes: true here too.'
-      : ' List the sections again: an id names its heading by position, so it changes when text before the heading changes.'
+      : followIncludes && SINGLE_FILE_ID.test(sectionId)
+        ? ' With followIncludes: true, pass an id from get_sections with followIncludes: true, which names its file as path#command:offset.'
+        : ' List the sections again: an id names its heading by position, so it changes when text before the heading changes.'
   return new McpError('NOT_FOUND', `Section ${sectionId} was not found.${hint}`)
 }
 
@@ -246,7 +247,7 @@ export class SectionsApi {
     this.#policy.assertEffect('overleaf-read', 'overleaf-write')
     if (options.followIncludes === true) {
       const document = await this.#flatten(projectId, filePath)
-      const named = parseSectionId(sectionId, document.rootFilePath)
+      const named = parseSectionId(sectionId)
       const read = named === undefined ? undefined : document.documents.get(named.filePath)
       if (read === undefined) throw sectionNotFound(sectionId, true)
       // Checked before the section is looked up: a change to its file can move its heading, and the
