@@ -203,6 +203,14 @@ describe('allowed effects through the real runtime', () => {
         runtime.entities.manageEntity('p', { action: 'delete', path: 'main.tex', confirmPath: 'main.tex' })
       ).rejects.toMatchObject({ code: 'POLICY_DENIED', details: { effect: 'overleaf-delete' } })
       await expect(runtime.compile.compileProject('p')).rejects.toMatchObject({ code: 'POLICY_DENIED' })
+      // A section write reads first, with or without followIncludes; the write is refused before that read.
+      for (const followIncludes of [false, true]) {
+        await expect(
+          runtime.sections.writeSection('p', 'main.tex', read.revision, 'section:0', 'x\n', 'untracked', {
+            followIncludes,
+          })
+        ).rejects.toMatchObject({ code: 'POLICY_DENIED', details: { effect: 'overleaf-write' } })
+      }
       expect(socketCalls).toEqual([])
     } finally {
       await runtime.close()

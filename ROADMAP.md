@@ -968,11 +968,11 @@ Keep the honesty pattern: update the "never follows `\input`" sentence to say ex
 
 ### Tasks
 
-- [ ] `\input` / `\include` / `\subfile` / `\import` scanner with comment stripping and cycle detection; unit tests including nested and cyclic fixtures.
-- [ ] Source-map builder and a `flatRange → (file, fileRange)` lookup helper.
-- [ ] `followIncludes` plumbing in the three section tools; write-back via `read_file` → `write_file` per touched file.
-- [ ] Keep `get_sections`' "does not follow `\input` by default" wording; it is still true by default.
-- [ ] Contract entries for `get_full_document` (`overleaf-read`) and `followIncludes` on the three section operations; `INCLUDE_CYCLE` and `INCLUDE_DEPTH_EXCEEDED` in `ERROR_CODES`; `TOOL_NAMES`, the README counts, the tool table, and `docs/tools.md` updated.
+- [x] `\input` / `\include` / `\subfile` / `\import` scanner with comment stripping and cycle detection; unit tests including nested and cyclic fixtures. Landed in `src/core/includes.ts`, reusing the section parser's masking; it also covers the unbraced `\input file`, `\inputfrom`, `\includefrom`, and their `sub` forms, and takes only a `\subfile`'s document body.
+- [x] Source-map builder and a `flatRange → (file, fileRange)` lookup helper (`mapFlattenedRange`). Each `unresolved` entry also carries a `reason` (`missing`, `binary_file`, `macro_argument`, `excluded_by_includeonly`), and the result adds `rootFilePath` and, when set, `includeOnly`.
+- [x] `followIncludes` plumbing in the three section tools; write-back via `read_file` → `write_file` per touched file. Section ids name the file (`path#command:offset`); a section whose heading is in an included file ends at the latest where that file ends, and the revision is checked against the section's file before the section is looked up.
+- [x] Keep `get_sections`' "does not follow `\input` by default" wording; it is still true by default.
+- [x] Contract entries for `get_full_document` (`overleaf-read`) and `followIncludes` on the three section operations; `INCLUDE_CYCLE` and `INCLUDE_DEPTH_EXCEEDED` in `ERROR_CODES`; `TOOL_NAMES`, the README counts, the tool table, and `docs/tools.md` updated.
 
 ### Acceptance
 

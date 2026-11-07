@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { DEFAULT_PROJECT_LIMIT, MAX_PROJECT_LIMIT } from '../overleaf/account.js'
 import { DEFAULT_LOG_TAIL, MAX_ERROR_LINES, MAX_LOG_CHARS, MAX_LOG_TAIL } from '../overleaf/compile.js'
 import { MAX_LOG_ENTRIES, MAX_MESSAGE_LENGTH } from '../overleaf/compile-log.js'
+import { DEFAULT_INCLUDE_DEPTH, MAX_FLATTENED_LENGTH, MAX_INCLUDE_DEPTH, MAX_INCLUDE_VISITS } from '../core/includes.js'
 import { SECTION_COMMANDS } from '../core/sections.js'
 import { COMPILERS, DEFAULT_ZIP_DOWNLOAD_TIMEOUT_MS } from '../overleaf/projects.js'
 import { BATCH_UPLOAD_LIMIT } from '../overleaf/sync.js'
@@ -40,6 +41,7 @@ export const OPERATION_NAMES = [
   'plan_sync',
   'sync_directory',
   'delete_entities',
+  'get_full_document',
   'get_sections',
   'get_section_content',
   'write_section',
@@ -147,6 +149,27 @@ const latexSectionSchema = z.object({
   bodyStart: z.number().int().nonnegative(),
   end: z.number().int().nonnegative(),
 })
+
+/** A section of a flattened document: offsets into the flattened text, plus the file holding its heading. */
+const includedSectionSchema = latexSectionSchema.extend({
+  filePath: z.string(),
+  revision: z.string(),
+  spansFiles: z.boolean(),
+})
+
+const unresolvedIncludeSchema = z.object({
+  file: z.string(),
+  line: z.number().int().positive(),
+  target: z.string(),
+  reason: z.enum(['missing', 'binary_file', 'macro_argument', 'excluded_by_includeonly']),
+})
+
+const followIncludes = z
+  .boolean()
+  .default(false)
+  .describe(
+    'Follow \\input, \\include, \\subfile, and \\import directives from filePath down, as get_full_document does; defaults to false, one file only'
+  )
 
 const logEntrySchema = z.object({
   file: z.string().optional(),
@@ -710,28 +733,72 @@ export const OPERATIONS = {
     annotations: { destructiveHint: true, idempotentHint: false },
     effects: ['overleaf-read', 'overleaf-delete'],
   },
-  get_sections: {
-    description: 'Parse LaTeX section headings in one file only; this never follows input/include directives.',
-    inputSchema: z.object({ projectId, filePath }),
+  get_full_document: {
+    description: `Flatten a LaTeX document latexpand-style: starting from rootFilePath, or from the project's root document when it is left out, every \\input, \\include, \\subfile, and \\import (also \\subimport, \\inputfrom, \\subinputfrom, \\includefrom, \\subincludefrom) is replaced by the text of the file it names, recursively, and the rest of the text is kept exactly. Directives inside % comments and verbatim text are skipped. A path resolves relative to the project root first and then to the including file's folder (the other way round for \\subimport and its relatives); \\input and \\subfile try the name as written and then with .tex, \\include always means .tex, and \\subfile takes in only the named file's document body. \\include does not add its page breaks to the text. A directive that cannot be followed stays as written and is listed in unresolved with file, line (1-based), target, and reason: missing (no document at any candidate path), binary_file (the path is an uploaded file, not a text document), macro_argument (the path uses a macro or parameter), or excluded_by_includeonly (an \\include an \\includeonly list leaves out; includeOnly lists it). Returns rootFilePath, text, files (every file visited, each once, in order), unresolved, includeOnly when a file sets it, and sourceMap: one entry per run of text copied from one file, { flattenedStart, flattenedEnd, filePath, docId, originalStart, originalEnd, revision }, offsets in UTF-16 code units, half-open, into text and into that file's LF-normalized content. revision is the file's revision as read_file returns it: route an edit decided on in the flattened view back with write_file or write_section on that file, with that revision, never by writing the flattened text anywhere. Each file is read separately, so files can change between reads; each revision matches the text it was read with. text joins each file's text to what follows its directive with nothing in between, as written; a comment on a file's last line therefore reads on into the next text if text is compiled as is, though section parsing treats each file separately. An include cycle is INCLUDE_CYCLE with details.chain; nesting deeper than maxDepth is INCLUDE_DEPTH_EXCEEDED (it never cuts the result short); a result longer than ${MAX_FLATTENED_LENGTH} code units is DOC_TOO_LARGE with details.kind flattened, and includes that take in files more than ${MAX_INCLUDE_VISITS} times in all, counting a file once per inclusion, are DOC_TOO_LARGE with details.kind includes: start from a file further down, or read the files one at a time.`,
+    inputSchema: z.object({
+      projectId,
+      rootFilePath: filePath
+        .optional()
+        .describe('Document to start from; defaults to the root document configured in Overleaf'),
+      maxDepth: z
+        .number()
+        .int()
+        .min(1)
+        .max(MAX_INCLUDE_DEPTH)
+        .default(DEFAULT_INCLUDE_DEPTH)
+        .describe(
+          `Levels of includes to follow below the root document, 1 to ${MAX_INCLUDE_DEPTH}; default ${DEFAULT_INCLUDE_DEPTH}`
+        ),
+    }),
     outputSchema: z.object({
-      sections: z.array(latexSectionSchema),
+      rootFilePath: z.string(),
+      text: z.string(),
+      sourceMap: z.array(
+        z.object({
+          flattenedStart: z.number().int().nonnegative(),
+          flattenedEnd: z.number().int().nonnegative(),
+          filePath: z.string(),
+          docId: z.string(),
+          originalStart: z.number().int().nonnegative(),
+          originalEnd: z.number().int().nonnegative(),
+          revision: z.string(),
+        })
+      ),
+      files: z.array(z.string()),
+      unresolved: z.array(unresolvedIncludeSchema),
+      includeOnly: z.array(z.string()).optional(),
+    }),
+    annotations: { readOnlyHint: true },
+    effects: ['overleaf-read'],
+  },
+  get_sections: {
+    description:
+      "Parse LaTeX section headings. By default this reads one file only and never follows input/include directives: singleFileOnly is true and offsets are into that file. With followIncludes: true, filePath is the document to start from (usually the root document), the headings are parsed in the text get_full_document returns for it, and singleFileOnly is false: start, headingEnd, bodyStart, and end are offsets into that flattened text, and each section adds filePath (the file holding its heading), revision (that file's revision, for write_section), and spansFiles (true when text from another file, other than white space, falls inside the section, or when an include directive or a file end falls inside its heading, so write_section refuses it). A section whose heading is in an included file ends, at the latest, where that file ends: the including file's text after the directive, such as \\bibliography or \\end{document}, belongs to no section. The section id then names its file, as path#command:offset, so pass followIncludes: true to get_section_content and write_section with it; the two modes end a body in different places, so an id from one mode is NOT_FOUND in the other. unresolved lists the directives that could not be followed, as in get_full_document. revision is always filePath's own.",
+    inputSchema: z.object({ projectId, filePath, followIncludes }),
+    outputSchema: z.object({
+      sections: z.array(z.union([includedSectionSchema, latexSectionSchema])),
       revision: z.string(),
-      singleFileOnly: z.literal(true),
+      singleFileOnly: z.boolean(),
+      unresolved: z.array(unresolvedIncludeSchema).optional(),
     }),
     annotations: { readOnlyHint: true },
     effects: ['overleaf-read'],
   },
   get_section_content: {
     description:
-      'Read one parsed section body from a single file. The body runs from after the heading to the next heading at the same or a higher level, so it includes nested subsections, and the last section runs to the end of the file, including \\end{document}.',
-    inputSchema: z.object({ projectId, filePath, sectionId: z.string().min(1) }),
-    outputSchema: z.object({ content: z.string(), section: latexSectionSchema, revision: z.string() }),
+      "Read one parsed section body. The body runs from after the heading to the next heading at the same or a higher level, so it includes nested subsections, and the last section runs to the end of its file, including \\end{document} when the file holds it. By default this reads a single file. With followIncludes: true, filePath is the document get_sections started from and sectionId comes from that call; a section that lies in one file is read as that file holds it, include directives included, which is exactly what write_section replaces, and revision is that file's revision; a section in an included file ends where that file ends, so it never holds the including file's \\end{document}. A section with spansFiles: true reads as flattened text across files, for reading only.",
+    inputSchema: z.object({ projectId, filePath, sectionId: z.string().min(1), followIncludes }),
+    outputSchema: z.object({
+      content: z.string(),
+      section: z.union([includedSectionSchema, latexSectionSchema]),
+      revision: z.string(),
+    }),
     annotations: { readOnlyHint: true },
     effects: ['overleaf-read'],
   },
   write_section: {
     description:
-      'Replace one section body in a single file using a revision-checked write, optionally recorded as tracked changes. Included files are not traversed. content replaces the whole body as get_section_content returns it, including nested subsections and, for the last section, \\end{document}, so read it first and keep what should survive. The write is made as by write_file: on a ShareJS (legacy editor) document, content that adds an emoji or other character outside the Basic Multilingual Plane, or reorders existing ones, is refused with INVALID_ARGUMENT; a timeout, a lost socket, or an Overleaf error after sending is observed, never resent; a review-only collaborator can write only with writeMode tracked and a read-only one cannot write, either being PERMISSION_DENIED before anything is sent; and a tracked write Overleaf applied without recording it as tracked changes by this account is PROTOCOL_UNSUPPORTED with details.kind applied_untracked, live and not reverted.',
+      "Replace one section body in a single file using a revision-checked write, optionally recorded as tracked changes. By default included files are not traversed. With followIncludes: true, filePath is the document get_sections started from, sectionId comes from that call, and revision is the section's revision from it: the body is replaced in the file holding the heading, through the same revision-checked write, and filePath in the result names that file. The revision is checked against that file first: a file changed since get_sections is REVISION_CONFLICT with details.filePath and details.liveRevision, and nothing is sent. A section with spansFiles: true is refused with INVALID_ARGUMENT, details.kind spans_files, before anything is sent; edit each file with write_file instead. A section in an included file ends where that file ends, so do not add the including file's \\end{document} to content. content replaces the whole body as get_section_content returns it, including nested subsections and, for the last section, \\end{document}, so read it first and keep what should survive. The write is made as by write_file: on a ShareJS (legacy editor) document, content that adds an emoji or other character outside the Basic Multilingual Plane, or reorders existing ones, is refused with INVALID_ARGUMENT; a timeout, a lost socket, or an Overleaf error after sending is observed, never resent; a review-only collaborator can write only with writeMode tracked and a read-only one cannot write, either being PERMISSION_DENIED before anything is sent; and a tracked write Overleaf applied without recording it as tracked changes by this account is PROTOCOL_UNSUPPORTED with details.kind applied_untracked, live and not reverted.",
     inputSchema: z.object({
       projectId,
       filePath,
@@ -739,8 +806,9 @@ export const OPERATIONS = {
       sectionId: z.string().min(1),
       content: z.string(),
       writeMode,
+      followIncludes,
     }),
-    outputSchema: documentWriteSchema,
+    outputSchema: documentWriteSchema.extend({ filePath: z.string().optional() }),
     annotations: { destructiveHint: true, idempotentHint: false },
     effects: ['overleaf-read', 'overleaf-write'],
   },

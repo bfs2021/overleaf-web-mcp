@@ -89,6 +89,23 @@ export const OUTPUTS: { [N in OperationName]: OperationOutput<N> } = {
     planned: true,
   },
   delete_entities: { status: 'complete', completed: [], failed: [], remaining: [] },
+  get_full_document: {
+    rootFilePath: 'main.tex',
+    text: 'Body',
+    sourceMap: [
+      {
+        flattenedStart: 0,
+        flattenedEnd: 4,
+        filePath: 'main.tex',
+        docId: 'd',
+        originalStart: 0,
+        originalEnd: 4,
+        revision: 'r',
+      },
+    ],
+    files: ['main.tex'],
+    unresolved: [],
+  },
   get_sections: { sections: [section], revision: 'r', singleFileOnly: true },
   get_section_content: { content: 'Body', section, revision: 'r' },
   write_section: { revision: 'r2', protocol: 'sharejs', trackChangesActive: false, writeMode: 'untracked' },

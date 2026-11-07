@@ -30,6 +30,7 @@ function fakeRuntime() {
     documents: { readFile: vi.fn(), writeFile: vi.fn() },
     createFile: vi.fn(),
     sections: {
+      getFullDocument: vi.fn(),
       getSections: vi.fn(),
       getSectionContent: vi.fn(),
       writeSection: vi.fn(),

@@ -31,12 +31,12 @@ export interface LatexSection {
   end: number
 }
 
-function skipWhitespace(source: string, index: number): number {
+export function skipWhitespace(source: string, index: number): number {
   while (/\s/u.test(source[index] ?? '')) index += 1
   return index
 }
 
-function readBalanced(
+export function readBalanced(
   source: string,
   index: number,
   open: '[' | '{',
@@ -101,13 +101,17 @@ function inlineVerbatimEnd(source: string, index: number): number {
   return close === -1 || close > limit ? limit : close + 1
 }
 
-function backslashesBefore(source: string, index: number): number {
+export function backslashesBefore(source: string, index: number): number {
   let count = 0
   while (source[index - count - 1] === '\\') count += 1
   return count
 }
 
-function maskIgnored(source: string): string {
+/**
+ * Blanks `%` comments, the ignored environments, and inline verbatim arguments, keeping every
+ * offset and newline, so a scan of the result finds only live commands.
+ */
+export function maskIgnored(source: string): string {
   // Spaces preserve every source offset; newlines preserve line structure for returned ranges.
   // Split by UTF-16 code unit, not code point, so array indexes match string offsets.
   const chars = source.split('')
@@ -142,9 +146,13 @@ function maskIgnored(source: string): string {
   return chars.join('')
 }
 
-export function findSections(input: string): LatexSection[] {
-  const source = input.replace(/\r\n?|\n/g, '\n')
-  const masked = maskIgnored(source)
+/**
+ * Parses the section headings of LaTeX source. `masked`, when given, is the source already masked
+ * (see `maskIgnored`), offset for offset; a flattened document passes one masked file by file.
+ */
+export function findSections(input: string, masked?: string): LatexSection[] {
+  const source = masked === undefined ? input.replace(/\r\n?|\n/g, '\n') : input
+  masked ??= maskIgnored(source)
   const candidates: Omit<LatexSection, 'index' | 'id' | 'end'>[] = []
   const commandPattern = new RegExp(String.raw`\\(${SECTION_COMMANDS.join('|')})(\*)?`, 'gu')
   let previousHeadingEnd = 0

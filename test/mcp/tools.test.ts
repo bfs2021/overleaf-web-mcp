@@ -34,6 +34,7 @@ function fakeRuntime() {
     documents: { readFile: vi.fn(), writeFile: vi.fn() },
     createFile: vi.fn(),
     sections: {
+      getFullDocument: vi.fn(),
       getSections: vi.fn(),
       getSectionContent: vi.fn(),
       writeSection: vi.fn(),
@@ -225,7 +226,8 @@ describe('MCP tool registration', () => {
       'revision',
       'section',
       'content',
-      'tracked'
+      'tracked',
+      { followIncludes: undefined }
     )
     expect(runtime.createFile).toHaveBeenCalledWith('project', 'chapter.tex', 'content', 'tracked')
   })

@@ -125,7 +125,15 @@ tool-argument budget. See [choosing between write_file and upload_file](tools.md
 
 `get_sections` parses the headings of one file and returns section ids; `get_section_content`
 reads one body; `write_section` replaces one body with the same revision check as `write_file`.
-Section parsing never follows `\input` or `\include`.
+By default, section parsing never follows `\input` or `\include`.
+
+For a manuscript split across files, pass `followIncludes: true` to all three, with `filePath` set
+to the root document. The headings of every included file are then listed in reading order, each
+with the file that holds it and that file's revision, and a write goes to that one file only. A
+section that runs across a file boundary is listed with `spansFiles: true` and can be read but not
+written; edit its files with `write_file`. To read the whole manuscript at once, call
+`get_full_document`: it returns the flattened text, a source map from each run of it back to its
+file and revision, and the include directives it could not follow.
 
 ### Syncing a local folder
 

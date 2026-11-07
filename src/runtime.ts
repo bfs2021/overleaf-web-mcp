@@ -209,7 +209,14 @@ export class OverleafRuntime implements OverleafServiceRuntime {
       policy,
     })
     const entities = new EntitiesApi(http, connections, policy)
-    const sections = new SectionsApi(documents)
+    // A fresh join before flattening, so includes are never resolved against a stale tree.
+    const sections = new SectionsApi(documents, {
+      getProjectTree: async projectId => {
+        await connections.invalidate(projectId)
+        return await entities.getProjectTree(projectId)
+      },
+      policy,
+    })
     // A fresh join before resolving, so a path is never looked up in a stale tree.
     const resolvePath = async (projectId: string, path: string, type: EntityType) => {
       await connections.invalidate(projectId)

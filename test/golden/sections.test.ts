@@ -428,3 +428,178 @@ describe('write_section', () => {
     expectGolden('write_section', result)
   })
 })
+
+/**
+ * A manuscript split across files: \input and \include of root-level documents, one each of the
+ * directives that cannot be followed, and a binary figure.
+ */
+const SPLIT_MAIN = [
+  String.raw`\documentclass{article}`,
+  String.raw`\begin{document}`,
+  String.raw`\section{Introduction}`,
+  'Opening words.',
+  String.raw`\input{background}`,
+  String.raw`\include{methods}`,
+  String.raw`\input{missing} % not in the project`,
+  String.raw`\input{figure.pdf}`,
+  String.raw`\end{document}`,
+  '',
+].join('\n')
+
+function splitProject(): FakeProject {
+  const project = createProject({
+    'main.tex': { protocol: 'sharejs', content: SPLIT_MAIN },
+    'background.tex': { protocol: 'sharejs', content: '\\subsection{Background}\nPrior work.\n' },
+    'methods.tex': {
+      protocol: 'history-ot',
+      snapshot: { content: '\\section{Methods}\nWe measured.\n', comments: [], trackedChanges: [] },
+    },
+  })
+  project.root.fileRefs = [{ _id: 'file-1', name: 'figure.pdf', hash: 'a'.repeat(40) }]
+  return project
+}
+
+describe('get_full_document', () => {
+  test('a manuscript split across \\input and \\include, with directives it cannot follow', async () => {
+    const result = await withService(
+      splitProject(),
+      async service => await service.get_full_document({ projectId: PROJECT, rootFilePath: 'main.tex' })
+    )
+    expect(result.text).toContain('Opening words.\n\\subsection{Background}\nPrior work.\n\n\\section{Methods}\n')
+    expect(result.files).toEqual(['main.tex', 'background.tex', 'methods.tex'])
+    expect(result.unresolved.map(entry => entry.reason)).toEqual(['missing', 'binary_file'])
+    expectGolden('get_full_document', result)
+  })
+
+  test('an \\includeonly list that leaves one \\include out', async () => {
+    const project = createProject({
+      'main.tex': { protocol: 'sharejs', content: '\\includeonly{a}\n\\include{a}\n\\include{b}\n' },
+      'a.tex': { protocol: 'sharejs', content: 'Chapter A.\n' },
+      'b.tex': { protocol: 'sharejs', content: 'Chapter B.\n' },
+    })
+    const result = await withService(
+      project,
+      async service => await service.get_full_document({ projectId: PROJECT, rootFilePath: 'main.tex' })
+    )
+    expect(result.includeOnly).toEqual(['a'])
+    expect(result.text).toBe('\\includeonly{a}\nChapter A.\n\n\\include{b}\n')
+    expectGolden('get_full_document', result)
+  })
+
+  test('a cycle is INCLUDE_CYCLE, through the service', async () => {
+    const project = createProject({
+      'main.tex': { protocol: 'sharejs', content: '\\input{a}' },
+      'a.tex': { protocol: 'sharejs', content: '\\input{main}' },
+    })
+    const failure = await withService(
+      project,
+      async service => await service.get_full_document({ projectId: PROJECT, rootFilePath: 'main.tex' })
+    ).catch((error: unknown) => error)
+    expect(failure).toMatchObject({ code: 'INCLUDE_CYCLE', details: { chain: ['main.tex', 'a.tex', 'main.tex'] } })
+  })
+})
+
+describe('section tools with followIncludes', () => {
+  const listed = async (service: OverleafService, title: string) => {
+    const read = await service.get_sections({ projectId: PROJECT, filePath: 'main.tex', followIncludes: true })
+    const section = read.sections.find(candidate => candidate.title === title) as
+      { id: string; revision: string; filePath: string } | undefined
+    if (section === undefined) throw new Error(`no section ${title}`)
+    return section
+  }
+
+  test('get_sections lists every file in the flattened order', async () => {
+    const result = await withService(
+      splitProject(),
+      async service => await service.get_sections({ projectId: PROJECT, filePath: 'main.tex', followIncludes: true })
+    )
+    expect(result.singleFileOnly).toBe(false)
+    expectGolden('get_sections', result)
+  })
+
+  test('get_section_content reads a section in an included file as that file holds it', async () => {
+    const result = await withService(splitProject(), async service => {
+      const { id } = await listed(service, 'Background')
+      return await service.get_section_content({
+        projectId: PROJECT,
+        filePath: 'main.tex',
+        sectionId: id,
+        followIncludes: true,
+      })
+    })
+    expect(result.content).toBe('Prior work.\n')
+    expectGolden('get_section_content', result)
+  })
+
+  test('write_section writes into the included history-OT file, and nothing else', async () => {
+    const project = splitProject()
+    const result = await withService(project, async service => {
+      const { id, revision } = await listed(service, 'Methods')
+      return await service.write_section({
+        projectId: PROJECT,
+        filePath: 'main.tex',
+        revision,
+        sectionId: id,
+        content: 'We measured again.\n',
+        followIncludes: true,
+      })
+    })
+    expect(result).toMatchObject({ filePath: 'methods.tex', protocol: 'history-ot' })
+    const methods = project.documents.get('doc-3')!
+    expect(methods.protocol === 'history-ot' && methods.snapshot.content).toBe(
+      '\\section{Methods}\nWe measured again.\n'
+    )
+    expect(project.documents.get('doc-1')).toMatchObject({ content: SPLIT_MAIN, version: 7 })
+    expect(project.applied).toBe(1)
+    expectGolden('write_section', result)
+  })
+
+  test('a file changed after listing is REVISION_CONFLICT, and nothing is written', async () => {
+    const project = splitProject()
+    const failure = await withService(project, async service => {
+      const { id, revision } = await listed(service, 'Background')
+      // A collaborator's edit lands on the included file in between.
+      const background = project.documents.get('doc-2')!
+      if (background.protocol !== 'sharejs') throw new Error('fixture')
+      background.content = '\\subsection{Background}\nPrior work, revised.\n'
+      background.version += 1
+      return await service
+        .write_section({
+          projectId: PROJECT,
+          filePath: 'main.tex',
+          revision,
+          sectionId: id,
+          content: 'Mine.\n',
+          followIncludes: true,
+        })
+        .catch((error: unknown) => error)
+    })
+    expect(failure).toMatchObject({ code: 'REVISION_CONFLICT' })
+    expect(project.applied).toBe(0)
+    expect(project.documents.get('doc-2')).toMatchObject({
+      content: '\\subsection{Background}\nPrior work, revised.\n',
+    })
+  })
+
+  test('a section that spans files is refused before anything is sent', async () => {
+    const project = splitProject()
+    const failure = await withService(project, async service => {
+      const { id, revision } = await listed(service, 'Introduction')
+      return await service
+        .write_section({
+          projectId: PROJECT,
+          filePath: 'main.tex',
+          revision,
+          sectionId: id,
+          content: 'x\n',
+          followIncludes: true,
+        })
+        .catch((error: unknown) => error)
+    })
+    expect(failure).toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { kind: 'spans_files', files: ['main.tex', 'background.tex'] },
+    })
+    expect(project.applied).toBe(0)
+  })
+})

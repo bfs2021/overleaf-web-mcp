@@ -23,6 +23,7 @@ export const INPUTS: Record<OperationName, Record<string, unknown>> = {
   plan_sync: { projectId: 'p', localFolderPath: '/tmp/paper' },
   sync_directory: { projectId: 'p', localFolderPath: '/tmp/paper', mode: 'additive', planToken: 't' },
   delete_entities: { projectId: 'p', paths: ['a.png'], confirmCount: 1 },
+  get_full_document: { projectId: 'p' },
   get_sections: { projectId: 'p', filePath: 'main.tex' },
   get_section_content: { projectId: 'p', filePath: 'main.tex', sectionId: 's' },
   write_section: { projectId: 'p', filePath: 'main.tex', revision: 'r', sectionId: 's', content: 'x' },

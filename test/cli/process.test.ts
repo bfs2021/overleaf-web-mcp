@@ -114,6 +114,16 @@ describe('the overleaf-web-mcp process', { timeout: 60_000 }, () => {
     expect(schema).toEqual(operationJsonSchema('read_file', 'input'))
   })
 
+  test('schema prints the output schema of get_full_document, source map included', async () => {
+    const exit = await overleafWebMcp('schema', 'get_full_document', '--output')
+    expect(exit.code).toBe(0)
+    expect(exit.stderr).toBe('')
+    const schema = JSON.parse(exit.stdout) as { properties: Record<string, unknown> }
+    expect(Object.keys(schema.properties)).toEqual(
+      expect.arrayContaining(['rootFilePath', 'text', 'sourceMap', 'files', 'unresolved'])
+    )
+  })
+
   test('capabilities needs no session', async () => {
     const exit = await overleafWebMcp('capabilities')
     expect(exit.code).toBe(0)

@@ -5,6 +5,80 @@ All notable changes to this project are documented here. This project follows
 shapes, and the command line's commands and exit codes may change in a minor or patch release;
 each such change is listed below.
 
+## [0.9.0] - Unreleased
+
+Multi-file documents. A manuscript split across `\input`, `\include`, `\subfile`, and `\import`
+can be read as one flattened document with a source map back to every file, and the section tools
+can list, read, and replace sections across those files, each write going through the
+revision-checked write of the one file that holds the section. The server registers 34 tools, one
+more than 0.8.x. Planned in
+[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md).
+
+### Added
+
+- **`get_full_document`**, read-only: flattens a document latexpand-style from `rootFilePath`, or
+  from the project's root document, following `\input`, `\include`, `\subfile`, `\import`,
+  `\subimport`, `\inputfrom`, `\subinputfrom`, `\includefrom`, and `\subincludefrom` up to
+  `maxDepth` levels (default 10, at most 32). Directives in `%` comments and verbatim text are
+  skipped. A path resolves relative to the project root, then to the including file's folder (the
+  other way round for `\subimport` and its relatives); `\input` tries the name and then `.tex`,
+  `\include` always means `.tex` and honours `\includeonly`, and `\subfile` takes in only the
+  file's document body, up to its first `\end{document}`. Returns `rootFilePath`, `text`, `files`,
+  `includeOnly` when set, a `sourceMap` of `{ flattenedStart, flattenedEnd, filePath, docId,
+  originalStart, originalEnd, revision }` runs, and `unresolved` directives `{ file, line, target,
+  reason }`, where `reason` is `missing`, `binary_file`, `macro_argument` (braced or not, as in
+  `\input\chapterfile` on one line; `\input` used as a token, as in `\let\oldinput\input`, includes
+  nothing), or `excluded_by_includeonly`. A directive that cannot be followed stays in the text as
+  written instead of failing the call. The text joins each file to what follows its directive with
+  nothing in between, exactly as the files hold it. Each file is read through the same read as
+  `read_file`, so each `revision` routes an edit back through `write_file` or `write_section`.
+- **`followIncludes`** on `get_sections`, `get_section_content`, and `write_section`, default
+  `false`. With it, `filePath` is the document to start from and the headings of every included
+  file are listed in reading order. Each section adds `filePath` (the file holding its heading),
+  `revision` (that file's), and `spansFiles`, its offsets are into the flattened text, and its `id`
+  names the file, as `path#command:offset`; an id from one mode is `NOT_FOUND` in the other, since
+  the two modes end a body in different places. `get_sections` also returns `unresolved`. A section
+  whose heading is in an included file ends at the latest where that file ends, and the including
+  file's text after the directive belongs to no section. Comments and verbatim text are read file
+  by file, as TeX reads them, so a `%` comment on the last line of an included file never hides a
+  heading after the directive. `write_section` replaces the body in that one file and returns its
+  `filePath`; it checks the revision against that file before looking the section up, so a file
+  changed since listing is `REVISION_CONFLICT` (`details.filePath`, `details.liveRevision`) with
+  nothing sent, and it refuses a section with `spansFiles: true` with `INVALID_ARGUMENT`,
+  `details.kind: "spans_files"` and `details.files`, before anything is sent. White space alone
+  from another file, such as the line break after an `\input` line, does not make a section span
+  files; an include directive inside a heading, or a file that ends inside one, does.
+- **`INCLUDE_CYCLE`** (`details.chain`) and **`INCLUDE_DEPTH_EXCEEDED`** (`details.maxDepth`,
+  `details.chain`) error codes, from `get_full_document` and the section tools with
+  `followIncludes: true`. The command line exits 1 for both. A flattened text longer than 8,388,608
+  UTF-16 code units is `DOC_TOO_LARGE` with `details.kind: "flattened"`, and include directives
+  that take in files more than 10,000 times in all, counting a file once per inclusion, are
+  `DOC_TOO_LARGE` with `details.kind: "includes"`, so an include graph that fans out cannot exhaust
+  the server's time or memory.
+- On the command line, `overleaf-web-mcp call get_full_document` and `overleaf-web-mcp schema
+  get_full_document`, and in the SDK, `client.getFullDocument`.
+
+### Changed
+
+- **`get_sections` result:** `singleFileOnly` is now a boolean, `true` as before unless
+  `followIncludes: true` is passed, and `sections` items and `get_section_content`'s `section` may
+  carry the three fields above. A call without `followIncludes` returns exactly what it returned in
+  0.8.x.
+- **`write_section` result** may carry `filePath`, set when `followIncludes: true` was passed.
+- **`write_section` checks the `overleaf-write` effect of the access policy before it reads the
+  document**, with or without `followIncludes`. Under a policy without `overleaf-write`, 0.8.x
+  joined the project and read the document before refusing the write with `POLICY_DENIED`; now
+  nothing is sent. The error is the same.
+- A section id passed to `get_section_content` or `write_section` that is not found now says how to
+  list the sections again, and, for an id that names a file, that `followIncludes: true` is needed.
+  The code is still `NOT_FOUND`.
+
+### Documentation
+
+- The tool reference documents the directives followed, how paths resolve, the `unresolved`
+  reasons, and the source map; the user guide, safety model, and command line guide list the new
+  tool and error codes.
+
 ## [0.8.1] - 2026-11-02
 
 A fix to the check after a tracked write. No tool was added or removed, and no result shape

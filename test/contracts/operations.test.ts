@@ -66,10 +66,29 @@ describe('operation contracts', () => {
     expect(OPERATIONS.download_file.effects).toContain('local-write')
   })
 
+  test('register get_full_document read-only, ahead of the section tools, with followIncludes on each of them', () => {
+    const at = OPERATION_NAMES.indexOf('get_full_document')
+    expect(OPERATION_NAMES.slice(at - 1, at + 4)).toEqual([
+      'delete_entities',
+      'get_full_document',
+      'get_sections',
+      'get_section_content',
+      'write_section',
+    ])
+    expect(OPERATIONS.get_full_document.annotations).toStrictEqual({ readOnlyHint: true })
+    expect(OPERATIONS.get_full_document.effects).toEqual(['overleaf-read'])
+    expect(OPERATIONS.get_full_document.outputSchema.shape.sourceMap).toBeDefined()
+    for (const name of ['get_sections', 'get_section_content', 'write_section'] as const) {
+      // Off by default, so a call that leaves it out keeps the single-file behaviour.
+      expect(OPERATIONS[name].inputSchema.shape.followIncludes.parse(undefined), name).toBe(false)
+    }
+    expect(OPERATIONS.get_full_document.inputSchema.parse({ projectId: 'p' })).toEqual({ projectId: 'p', maxDepth: 10 })
+  })
+
   test('register the two tracked-change operations after set_comment_status, annotated exactly', () => {
     const at = OPERATION_NAMES.indexOf('set_comment_status')
     expect(OPERATION_NAMES.slice(at + 1, at + 3)).toEqual(['list_tracked_changes', 'manage_tracked_changes'])
-    expect(OPERATION_NAMES).toHaveLength(33)
+    expect(OPERATION_NAMES).toHaveLength(34)
     expect(OPERATIONS.list_tracked_changes.annotations).toStrictEqual({ readOnlyHint: true })
     expect(OPERATIONS.list_tracked_changes.effects).toEqual(['overleaf-read'])
     expect(OPERATIONS.manage_tracked_changes.annotations).toStrictEqual({ destructiveHint: true, idempotentHint: true })

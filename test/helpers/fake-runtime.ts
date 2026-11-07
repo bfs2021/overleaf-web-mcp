@@ -32,6 +32,7 @@ export function fakeServiceRuntime() {
     documents: { readFile: resolved(OUTPUTS.read_file), writeFile: resolved(OUTPUTS.write_file) },
     createFile: resolved(OUTPUTS.create_file),
     sections: {
+      getFullDocument: resolved(OUTPUTS.get_full_document),
       getSections: resolved(OUTPUTS.get_sections),
       getSectionContent: resolved(OUTPUTS.get_section_content),
       writeSection: resolved(OUTPUTS.write_section),
