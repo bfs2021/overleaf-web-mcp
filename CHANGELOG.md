@@ -101,6 +101,14 @@ reports what the backend can do in a project. The server still registers 34 tool
   errors never carry, retries, and the limits of the access policy), the Terms-of-Service
   posture, what happens when Overleaf changes its private endpoints, and what Semantic Versioning
   covers from 1.0.0.
+- With the roadmap gone, `AGENTS.md` and the development guide say how work is planned and
+  released: planned work lives in GitHub issues with mechanically checkable acceptance criteria;
+  the conventions for new tools, error codes, variables, and commands, and the files each one
+  touches; how to choose a major, minor, or patch version; what to check before starting a
+  release; and the release checklist, from the changelog through live tests to checking the
+  published package. A tightened safety default is now announced in a minor release and enforced
+  in the next major one, as Semantic Versioning requires from 1.0.0; before 1.0.0 it was enforced
+  one minor later.
 - The installation guide gains a compatibility section and points at `doctor` for
   troubleshooting; the command line guide documents `doctor` and the `backend` report; the
   configuration guide documents retries and pacing; the private API catalogue lists every

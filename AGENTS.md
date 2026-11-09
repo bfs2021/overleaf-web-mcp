@@ -52,6 +52,8 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
   keeps its plain-text status lines on stderr.
   Diagnostics go to stderr as JSON, and only `src/cli.ts` writes them: `src/cli/` writes through
   the `CliIo` streams it is handed.
+- Nothing runs caller-supplied code with access to the saved session: no eval, script, or plugin
+  surface, through any interface.
 - Writes are never retried automatically, by any interface: the CLI and the SDK add no retry, and
   exit 5 means never re-run. A timed-out write is observed and classified as applied,
   not applied, or conflict. It is never resubmitted.
@@ -64,11 +66,16 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
   with no expected state at all is asked for by name, and `unplanned` and
   `uncheckedDocumentReplace` are the only such opt-ins. No CLI flag supplies a confirm value on
   the caller's behalf: there is no `--yes` or `--force`, and no command prompts.
-- A tightened safety default is announced one minor version ahead and enforced in the next: the
-  announcing minor keeps the old behaviour, adds a `deprecations` entry
-  `{ parameter, message, enforcedIn }` to the result and a `Deprecated` entry to `CHANGELOG.md`
-  naming the enforcing version, and the next minor enforces it under `Changed`. New interfaces
-  start strict.
+- A tightened safety default is announced before it is enforced. The announcing minor release
+  keeps the old behaviour, adds a `deprecations` entry `{ parameter, message, enforcedIn }` to the
+  result (`addDeprecation` in `src/contracts/deprecations.ts`) and a `Deprecated` entry to
+  `CHANGELOG.md` naming the enforcing version. No `outputSchema` declares `deprecations` today, so
+  the announcing release first adds it to that operation's schema as an optional array of
+  `{ parameter, message, enforcedIn }`, with the snapshot, golden results, and fixture output to
+  match; otherwise MCP clients refuse the result. Once declared, the key stays until a major
+  release. Since 1.0.0, refusing a call that used to work is a
+  breaking change, so it is enforced in the next major release, under `Changed`; before 1.0.0 it
+  was enforced one minor later. New interfaces start strict.
 - Every public method of the domain engine checks the access policy (`src/core/policy.ts`) for
   its project and each effect it performs before any request, so the exported runtime is held to
   the same rules as a tool call. Ids interpolated into a request path are path-safe and
@@ -84,8 +91,8 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
   adapter; ESLint enforces it, type imports included.
 - Tool names, input schemas, result shapes, and error codes are the public contract, and so are
   the CLI's command names, flags, request format, output framing, and exit codes, and the
-  `overleaf-web-mcp/core` surface `docs/sdk.md` lists as stable. Any change is listed in
-  `CHANGELOG.md` under the next version.
+  `overleaf-web-mcp/core` surface `docs/sdk.md` lists as stable, and the `capabilities` report.
+  Any change is listed in `CHANGELOG.md` under the next version.
 - Every result validates against its operation's `outputSchema` on every return path and carries
   no key the schema does not declare. zod drops an undeclared key without failing, so the
   service's check of read-only results does not catch one, yet `tools/list` advertises
@@ -133,22 +140,181 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
   `overleaf-web-mcp/core` surface; a test holds both.
 - `skills/*/SKILL.md` use only commands `renderHelp` lists and name no assistant or model.
 
+## Conventions for new work
+
+These held through every release so far; keep them.
+
+- Tool names are snake_case `verb_noun` (`list_projects`, `manage_entity`), and parameters are
+  camelCase. A tool name is also its command line and SDK name (`call read_file`,
+  `client.readFile`), so naming one names all three.
+- Every tool description costs an MCP client context on every turn. Prefer an `action` enum on an
+  existing tool, as `manage_entity`, `manage_project`, and `manage_tracked_changes` do, to one new
+  tool per verb. A check that needs no agent, such as `doctor` or `capabilities`, is a command line
+  command, not a tool.
+- An adapter parses, renders, and maps errors. It never shapes arguments, applies policy, or
+  retries; that belongs in `src/service/` and below.
+- A new interface (an HTTP service, WebMCP, another tool protocol, agent-to-agent) is a thin
+  adapter over `src/service/`, built only for a named consumer recorded in an issue. A new backend
+  (an official Overleaf API, Git) reports what it can do in the `backend` key of `capabilities`,
+  is chosen explicitly, and is never swapped in silently; the web session stays until a
+  replacement covers revision checks and tracked edits. The package, repository, and binary keep
+  their names.
+- Bulk tools are compositions over the per-project FIFO queue. They save calls and context, not
+  wall-clock time; say so in the tool's description. The queue is per process, so revision checks
+  and plan tokens, not the queue, protect two processes working on one project.
+- Tokens are self-contained: revisions (`createRevision` in `src/core/revision.ts`), plan tokens,
+  and `buildRef` carry everything a later call needs, so read-then-write and plan-then-apply work
+  across processes with no daemon or state file. A new token follows suit.
+- A tool description states its own limits outright, as `get_sections` did about `\input` before
+  0.9.0. An agent reads only the description and `src/mcp/instructions.ts`.
+- Error `details` hold status codes, short identifiers, counts, and values the caller supplied.
+  A new failure kind goes in `details.kind` or `details.reason` on an existing code before it
+  earns a new code. Outcomes use `details.outcome` (`not_applied`, `unknown`).
+- Only reads are retried, below every interface, by `retryRead` (`src/core/retry.ts`): network
+  failures, cut-off answers, and HTTP 5xx on a GET or a POST marked `read`, and project joins
+  that failed before Overleaf answered. A new read that goes through POST passes `{ read: true }`.
+- Every endpoint or socket message the code relies on is confirmed in Overleaf's own source
+  (`overleaf/overleaf`, `services/web` and `services/real-time`) before it is used, and listed in
+  `docs/private-api.md`. Anything not yet confirmed is marked *(verify in code)* in the issue or
+  pull request until it is.
+
+### Adding to the public surface
+
+Each addition touches several files, and the tests fail until they agree.
+
+- **An operation:** its entry in `src/contracts/operations.ts` (input and output schemas,
+  description, annotations, effects) and its shaping in `src/service/operations.ts`. When it needs
+  a new call to Overleaf, a domain method in `src/overleaf/` that checks the access policy before
+  any request, listed in `OverleafServiceRuntime` (`src/contracts/service.ts`) and mocked in
+  `test/helpers/fake-runtime.ts` and in the `fakeRuntime()` of `test/mcp/tools.test.ts` and
+  `test/server.test.ts`; `npm run check` type-checks the tests and fails until they match. Then a
+  fixture input and output in `test/helpers/operation-inputs.ts` and
+  `test/helpers/operation-outputs.ts`, golden results under `test/golden/` (its area's file, or a
+  new one), the `tools/list` snapshot, and `docs/tools.md`. Counts: the length in
+  `test/contracts/operations.test.ts`; the no-project count in `test/policy-runtime.test.ts` when
+  the operation takes no `projectId`; the README badge, both "All N tools", the comparison's Tools
+  cell, and `docs/tools.md`, which `test/mcp/tools.test.ts` holds; and, held by no test, the
+  README's "N tools in eight groups" and the opening line of `docs/cli.md`. A command line
+  shorthand only if scripts will use it often. The SDK client and `call <tool>` derive their names
+  from the operation, so they need nothing more.
+- **An error code:** `ERROR_CODES` in `src/contracts/error-codes.ts`, its exit code in
+  `src/cli/exit-codes.ts`, both exit tables in `test/cli/exit-codes.test.ts` and
+  `test/cli/run.test.ts`, the exit-code table in `docs/cli.md`, the error table in
+  `docs/safety.md`, and the `tools/list` snapshot.
+- **An environment variable:** `readConfig` in `src/config.ts`, a test in
+  `test/http/config.test.ts`, and the table in `docs/configuration.md`. A new `AppConfig` field
+  is optional, because `AppConfig` is stable and callers build it by hand; the runtime applies the
+  same default as `readConfig`.
+- **A generic command:** its usage line in `GENERIC_USAGE` and its first word in
+  `OPERATION_COMMAND_WORDS` (both in `src/cli/commands.ts`; without the word the command is
+  treated as unknown), a parser and a `ParsedCommandLine` kind in `src/cli/parse.ts`, a case in
+  `runOperationCommand` in `src/cli/run.ts`, tests in `test/cli/`, and `docs/cli.md`.
+- **A shorthand:** an `ALIASES` entry in `src/cli/commands.ts` (usage, options, `build`; the
+  parser picks it up), and its usage line and a row of the Commands table in `docs/cli.md`.
+  `test/cli/docs.test.ts` holds `docs/cli.md` to the help for both kinds.
+- **A `capabilities` field:** `CapabilitiesReport` and `buildCapabilities` in
+  `src/cli/capabilities.ts`, the `capabilities` tests in `test/cli/run.test.ts`, and the
+  `capabilities` section of `docs/cli.md`.
+- **A stable SDK export:** `src/sdk.ts`, the stable table in `docs/sdk.md`, and the `PROMISED`
+  list in `test/cli/docs.test.ts`, which is what fails if the export is later removed.
+
+Every one of these is listed in `CHANGELOG.md` under the next version. That section opens with the
+first change on a release branch, as a line `## [X.Y.Z] - Unreleased` at the top of the file,
+under the header paragraph.
+
+## Planning work
+
+Planned work lives in [GitHub issues](https://github.com/mhmdaskari/overleaf-web-mcp/issues), one
+per change, not in a roadmap file. An issue says what fails today, the design, and acceptance
+criteria that can be checked mechanically: a test that passes, a command whose output or exit code
+is stated, a live suite that runs green. A release is a set of those issues, built on one branch
+named `release/<version>-<theme>` and merged in one pull request whose description says which
+issues it closes, what was tested, and what was left out.
+
+### Choosing the version
+
+From 1.0.0 the project follows [Semantic Versioning](https://semver.org) over the public contract
+listed under **Rules that must keep holding**.
+
+- **Major:** anything that can break a caller who followed the docs. Removing or renaming a tool,
+  parameter, result key, command, flag, or stable SDK export; making an optional parameter required
+  or narrowing what it accepts; changing a result key's type; giving an existing failure a different
+  error code or exit code, including moving one from `REMOTE_ERROR` to a more specific code;
+  changing the output framing; enforcing a tightened safety default.
+- **Minor:** additions a caller can ignore. A new tool, an optional parameter, a new result key, a
+  new error code for a failure only a new tool, parameter, or command can produce, a new `details`
+  key, a new command or flag, a new environment variable, a new stable export, and announcing a
+  deprecation.
+- **Patch:** fixes that bring behaviour back in line with the docs, documentation, and internal
+  changes. A fix that changes an error code is a patch only when the old code contradicted the
+  documentation; list it under `Fixed`.
+
+When in doubt, it is the larger one.
+
+### Before starting a release
+
+The code moves on between releases. Check these before writing anything, and say in the pull
+request what you found:
+
+- `npm view overleaf-web-mcp version`, the latest `vX.Y.Z` tag, `package.json`, `SERVER_VERSION`
+  in `src/version.ts`, and both `version` fields of `server.json` agree on the last release.
+- The MCP SDK is still v2: `@modelcontextprotocol/server` 2.x in `dependencies`,
+  `@modelcontextprotocol/client` 2.x in `devDependencies`, `npm ls @modelcontextprotocol/sdk`
+  prints `(empty)`, and `npm ls zod @modelcontextprotocol/core` shows one copy of each. Note which
+  MCP protocol versions the server answers and whether the SDK added one.
+- `SERVER_INSTRUCTIONS` (`src/mcp/instructions.ts`) is under the 450-word bound in
+  `test/server.test.ts`; it was 445 words at 1.0.0, so a release that adds guidance trims
+  elsewhere.
+- Every Overleaf route or socket message the release will touch is still in Overleaf's source as
+  `docs/private-api.md` describes it.
+- The comparison in the README was checked on the date it states; re-check the projects it names
+  if that is more than a release ago.
+- `overleaf-web-mcp doctor <projectId>` passes against a disposable project, so a live failure
+  later is the release's own.
+
 ## Releasing
 
-1. Update `CHANGELOG.md`. Set the same version in `package.json` (and `package-lock.json`, for
-   example with `npm version X.Y.Z --no-git-tag-version`), `SERVER_VERSION` in
-   `src/version.ts`, and both `version` fields of `server.json`. A minor release also moves the
+1. **Changelog.** Turn the next version's section of `CHANGELOG.md` from `Unreleased` into the
+   version and date, with a short summary paragraph and the sections that apply, in this order:
+   `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Documentation`, `Internal`. Every change
+   to the public contract is listed, and each entry says what a caller sees, with codes, keys, and
+   exit codes named. Write the date as `YYYY-MM-DD`: the publish workflow only checks that a line
+   starting `## [X.Y.Z]` exists, so it accepts a heading still marked `Unreleased`.
+2. **Version.** Set the same version in `package.json` and `package-lock.json` (for example
+   `npm version X.Y.Z --no-git-tag-version`), `SERVER_VERSION` in `src/version.ts`, and both
+   `version` fields of `server.json`. A major or minor release also moves the
    `npx --yes overleaf-web-mcp@X.Y` pin in `skills/*/SKILL.md`, `docs/cli.md`, and
    `test/skills.test.ts`, which fails until it matches.
-2. Merge to `main` with CI green.
-3. Run the `Publish to npm` workflow on `main` with the version (`workflow_dispatch`). It checks
-   that the version matches `package.json` and has a `CHANGELOG.md` section, re-runs the checks
-   and the packed file list check,
-   publishes to npm with trusted publishing, lists the version in the MCP Registry from
-   `server.json` with GitHub OIDC, then creates the `vX.Y.Z` tag and the GitHub Release with that
-   section as its notes. Publishing a GitHub Release with tag `vX.Y.Z` by hand still
-   works and runs the same checks and publish.
-4. The docs site redeploys on its own from `main`.
+3. **Documentation.** The pages that describe what changed agree with the code: `docs/tools.md`,
+   the error table in `docs/safety.md`, the exit-code table in `docs/cli.md`, the variables in
+   `docs/configuration.md`, `docs/private-api.md`, the stable surface in `docs/sdk.md`, and the
+   README's tool table and counts. Snapshots and golden results change only with a change the
+   changelog lists.
+4. **Offline checks.** `npm run check`, `npm run lint`, `npm run format:check`, `npm test`,
+   `npm run build`, `npx tsx scripts/check-pack.ts`, and `mkdocs build --strict` all pass.
+5. **Live tests.** Any release that changes code under `src/overleaf/`, `src/protocol/`,
+   `src/http/`, `src/auth/`, `src/core/`, or `src/service/`, or in `src/runtime.ts`,
+   `src/config.ts`, or `src/cli/doctor.ts`, runs the live suites (see `docs/development.md`)
+   against a disposable project the maintainer owns: each file in its own run, after
+   `npm run build`, with a minute between files for Overleaf's join limit. Check afterwards that
+   every throwaway project is in the trash (`projects list --query mcp- --include-trashed`), and
+   tell the maintainer to empty it; the suites never delete. A failure that comes from the
+   account's plan, such as track changes being off, is reported, not patched around.
+6. **Pull request.** The description says what changed, which issues it closes, which live suites
+   ran and with what result, and what was left out. Read it back after creating it and remove any
+   footer or link a tool added. Merge to `main` with CI green.
+7. **Publish.** Run the `Publish to npm` workflow on `main` with the version
+   (`workflow_dispatch`). It checks that the version matches `package.json` and has a
+   `CHANGELOG.md` section, re-runs the checks and the packed file list check, publishes to npm
+   with trusted publishing, lists the version in the MCP Registry from `server.json` with GitHub
+   OIDC, then creates the `vX.Y.Z` tag and the GitHub Release with that section as its notes.
+   Publishing a GitHub Release with tag `vX.Y.Z` by hand still works and runs the same checks and
+   publish. A run that failed after npm can be re-run; it skips what is already published.
+8. **After publishing.** `npm view overleaf-web-mcp version` shows the new version,
+   `npx --yes overleaf-web-mcp@X.Y.Z --help` runs, the GitHub Release and tag exist, the MCP
+   Registry job succeeded, and the docs site, which redeploys on its own from `main`, shows the
+   new changelog section. Close the issues the release shipped, and open issues for what it left
+   out.
 
 ## Style
 

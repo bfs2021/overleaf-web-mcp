@@ -84,8 +84,8 @@ The rules that most often catch a first pull request:
   token), never by a flag like `--yes`.
 - **The public contract is stable.** Tool names, input schemas, result shapes, error codes, and
   the command line's commands, flags, output, and exit codes are public. Any change to them is
-  listed in `CHANGELOG.md` under the next version, and a stricter safety default is announced one
-  minor version before it is enforced.
+  listed in `CHANGELOG.md` under the next version, and a stricter safety default is announced in a
+  minor release and enforced only in the next major one.
 - **Write independent code.** This package is MIT-licensed. Overleaf itself and some other Overleaf
   MCP servers are AGPL-3.0, so read them to understand the protocol, but do not copy their code.
 
@@ -101,14 +101,22 @@ The rules that most often catch a first pull request:
 
 ### Pull requests
 
+For anything larger than a fix, open an issue first, or comment on an existing one, so the design
+and the acceptance criteria are agreed before the code. Planned work lives in
+[issues](https://github.com/mhmdaskari/overleaf-web-mcp/issues), and the maintainer decides which
+release a change goes into and its version number, following the
+[versioning rules](https://mhmdaskari.github.io/overleaf-web-mcp/development/#planning-and-versioning).
+
 1. Branch from `main` with a name that describes the work: `feat/`, `fix/`, `docs/`, or `chore/`
    plus a short topic, for example `fix/compile-root-resolution`.
 2. Keep each pull request to one change. Commit subjects use a conventional prefix (`feat:`,
    `fix:`, `docs:`, `ci:`, `chore:`) and plain wording.
-3. Run every command under **Set up**, and `npx tsx scripts/check-pack.ts` after a build if you changed what is published.
+3. Run every command under **Set up**, and `npx tsx scripts/check-pack.ts` after a build if you
+   changed what is published.
 4. Add a `CHANGELOG.md` entry for anything a user would notice, and update the documentation in
-   `docs/` and the README when behaviour changes. Edit `CHANGELOG.md` at the repository
-   root; the documentation site includes it.
+   `docs/` and the README when behaviour changes. The entry goes in the `## [X.Y.Z] - Unreleased`
+   section at the top of `CHANGELOG.md`; open it with the next version number if there is none.
+   Edit `CHANGELOG.md` at the repository root; the documentation site includes it.
 5. In the description, say what changed, why, and how you tested it. If you ran live tests, say
    so, and against which kind of Overleaf.
 

@@ -68,8 +68,14 @@ Live tests are disabled by default and must target a disposable project you own:
 ```bash
 RUN_OVERLEAF_LIVE_TESTS=1 \
 OVERLEAF_LIVE_TEST_PROJECT_ID=0123456789abcdef01234567 \
-npm test -- test/live
+npm test -- test/live/overleaf-live.test.ts
 ```
+
+Run each file in its own `npm test` run, and wait a minute between files: Overleaf allows one
+account 45 joins of one project a minute. Run `npm run build` first, so the files that drive the
+built package test the current code. `OVERLEAF_LIVE_TEST_PROJECT_ID` is needed only by
+`overleaf-live.test.ts`; a project made for it with `call create_project` and trashed afterwards
+will do.
 
 Add `RUN_OVERLEAF_LIVE_REVIEW_TESTS=1` for review reads,
 `RUN_OVERLEAF_LIVE_TRACKED_WRITE_TESTS=1` for a disposable tracked file create and delete,
@@ -157,15 +163,61 @@ than it asked for. Never commit to the `badges` branch by hand; the next run rep
 node scripts/npm-downloads.ts /tmp/npm-downloads.json   # Node 22.18 or newer runs it directly
 ```
 
+## Planning and versioning
+
+Planned work is tracked in [GitHub issues](https://github.com/mhmdaskari/overleaf-web-mcp/issues),
+one per change, each with acceptance criteria that can be checked mechanically: a test that
+passes, a command whose output or exit code is stated, or a live suite that runs green. A release
+gathers a set of them on one branch named `release/<version>-<theme>` and merges in one pull
+request.
+
+From 1.0.0 the project follows [Semantic Versioning](https://semver.org). The public contract is
+the tool names, input schemas, result shapes, and error codes; the command line's commands, flags,
+request format, output framing, and exit codes; the stable `overleaf-web-mcp/core` surface
+[the SDK page](sdk.md) lists; and the `capabilities` report.
+
+| Release | What it may contain |
+| --- | --- |
+| Major | Anything that can break a caller who followed the docs: a removed or renamed tool, parameter, result key, command, flag, or stable export; a parameter made required or narrowed; a result key's type changed; a failure given a different error code or exit code, including one moved from `REMOTE_ERROR` to a more specific code; changed output framing; an enforced safety default. |
+| Minor | Additions a caller can ignore: a tool, an optional parameter, a result key, a new error code for a failure only a new tool, parameter, or command can produce, a `details` key, a command or flag, an environment variable, a stable export, and a deprecation announced. |
+| Patch | Fixes that bring behaviour back in line with the docs, documentation, and internal changes. A fix that changes an error code is a patch only when the old code contradicted the docs, and is listed under `Fixed`. |
+
+When in doubt, it is the larger one.
+
+A tightened safety default is announced in a minor release, which keeps the old behaviour, adds a
+`deprecations` entry to the affected result (declared in that operation's `outputSchema`) and a
+`Deprecated` entry to the changelog naming the enforcing version, and is enforced in the next
+major release. [AGENTS.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/AGENTS.md)
+holds the conventions for new tools, error codes, variables, and commands, and the files each one
+touches.
+
 ## Releasing
 
-1. Update `CHANGELOG.md`. Set the same version in `package.json` and `package-lock.json`, for
-   example with `npm version X.Y.Z --no-git-tag-version`, in `SERVER_VERSION` in
-   `src/version.ts`, and in both `version` fields of `server.json`. A minor release also moves the
-   `npx --yes overleaf-web-mcp@X.Y` pin in `skills/*/SKILL.md`, `docs/cli.md`, and
-   `test/skills.test.ts`, which fails until it matches.
-2. Merge to `main` with CI green.
-3. Publish, in either of two ways. Both run the `Publish to npm` workflow, which checks that the
+Before starting, check that npm, the latest tag, `package.json`, `SERVER_VERSION`, and
+`server.json` agree on the last release, that `npm ls @modelcontextprotocol/sdk` prints
+`(empty)`, that the server instructions are still under the length bound `test/server.test.ts`
+sets, and that `overleaf-web-mcp doctor <projectId>` passes against a disposable project.
+
+1. Turn the next version's `CHANGELOG.md` section from `Unreleased` into the version and date,
+   with the date as `YYYY-MM-DD`, a summary, and the sections that apply: `Added`, `Changed`,
+   `Deprecated`, `Removed`, `Fixed`, `Documentation`, `Internal`. The section opens with the first
+   change on the release branch as `## [X.Y.Z] - Unreleased`; the publish workflow accepts it
+   undated, so check the date yourself. Set the same version in `package.json` and
+   `package-lock.json`, for example with `npm version X.Y.Z --no-git-tag-version`, in
+   `SERVER_VERSION` in `src/version.ts`, and in both `version` fields of `server.json`. A major or
+   minor release also moves the `npx --yes overleaf-web-mcp@X.Y` pin in `skills/*/SKILL.md`,
+   `docs/cli.md`, and `test/skills.test.ts`, which fails until it matches.
+2. Bring the pages that describe what changed in line with the code: the tool reference, the
+   error table in the safety model, the exit codes on the command line page, the configuration
+   variables, the private API catalogue, the SDK's stable surface, and every tool count AGENTS.md
+   lists. Run every command under [local verification](#local-verification) and
+   `mkdocs build --strict`.
+3. For a release that changes code under `src/overleaf/`, `src/protocol/`, `src/http/`, `src/auth/`,
+   `src/core/`, or `src/service/`, or in `src/runtime.ts`, `src/config.ts`, or `src/cli/doctor.ts`,
+   run the [live tests](#live-tests) and empty the Trashed view afterwards. Say in the pull request
+   which suites ran and how they went.
+4. Merge to `main` with CI green.
+5. Publish, in either of two ways. Both run the `Publish to npm` workflow, which checks that the
    tag equals the package version and that `CHANGELOG.md` has a section for it, re-runs check,
    lint, the format check, test, and build, checks the packed file list, and publishes to npm with trusted publishing. No npm token is stored in
    the repository.
@@ -183,11 +235,17 @@ node scripts/npm-downloads.ts /tmp/npm-downloads.json   # Node 22.18 or newer ru
     Registry skips that too, so a run that failed after publishing can be re-run to create
     whatever is missing.
 
+6. Check the result: `npm view overleaf-web-mcp version` shows the new version,
+   `npx --yes overleaf-web-mcp@X.Y.Z --help` runs, the tag and the GitHub Release exist, and the
+   site shows the new changelog section once the `Docs` workflow has run. Close the issues the
+   release shipped and open issues for what it left out.
+
 ## For coding agents
 
-[`AGENTS.md`](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/AGENTS.md) in the
-repository root states the rules that must keep holding, the test expectations, and the release
-steps in a form meant for an agent working on the code. `CLAUDE.md` imports it for Claude Code.
+[`AGENTS.md`](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/AGENTS.md) in the repository
+root states the rules that must keep holding, the conventions for new work and the files each
+addition touches, how work is planned and versioned, the test expectations, and the release
+checklist, in a form meant for an agent working on the code. `CLAUDE.md` imports it for Claude Code.
 The Agent Skills in `skills/` are a different audience: they are for agents using the published
 package, and ship in it.
 
