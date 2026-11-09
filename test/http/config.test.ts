@@ -37,6 +37,28 @@ describe('configuration', () => {
     })
   })
 
+  test('reads the retry and pacing settings, capping attempts at three and the interval at a minute', () => {
+    const base = { OVERLEAF_COOKIE_JAR_FILE: '/tmp/cookies.txt' }
+    expect(readConfig(base)).toMatchObject({ readAttempts: 3, minRequestIntervalMs: 0 })
+    expect(readConfig({ ...base, OVERLEAF_READ_ATTEMPTS: '1', OVERLEAF_MIN_REQUEST_INTERVAL_MS: '250' })).toMatchObject(
+      { readAttempts: 1, minRequestIntervalMs: 250 }
+    )
+    expect(
+      readConfig({ ...base, OVERLEAF_READ_ATTEMPTS: '9', OVERLEAF_MIN_REQUEST_INTERVAL_MS: '999999' })
+    ).toMatchObject({ readAttempts: 3, minRequestIntervalMs: 60_000 })
+    for (const [name, value] of [
+      ['OVERLEAF_READ_ATTEMPTS', '0'],
+      ['OVERLEAF_READ_ATTEMPTS', '1.5'],
+      ['OVERLEAF_READ_ATTEMPTS', 'three'],
+      ['OVERLEAF_MIN_REQUEST_INTERVAL_MS', '-1'],
+      ['OVERLEAF_MIN_REQUEST_INTERVAL_MS', 'soon'],
+    ] as const) {
+      expect(() => readConfig({ ...base, [name]: value }), `${name}=${value}`).toThrow(
+        expect.objectContaining({ code: 'INVALID_ARGUMENT' })
+      )
+    }
+  })
+
   test('resolves platform-specific authentication paths', () => {
     expect(resolveAuthPaths({ platform: 'darwin', homeDir: '/Users/alice', env: {} })).toEqual({
       cookieJarFile: '/Users/alice/Library/Application Support/overleaf-web-mcp/cookies.txt',

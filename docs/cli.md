@@ -19,7 +19,7 @@ npx overleaf-web-mcp call auth_status
 [installation guide](install.md#1-sign-in-once). `call auth_status` then prints the account's
 project count and when the session expires, and exits 0. For frequent use, install the package
 once with `npm install -g overleaf-web-mcp` and run `overleaf-web-mcp` directly. In a script, pin the version and pass `--yes`, as in
-`npx --yes overleaf-web-mcp@0.9 projects list`: without `--yes`, `npx` can print an install
+`npx --yes overleaf-web-mcp@1.0 projects list`: without `--yes`, `npx` can print an install
 notice on stderr the first time.
 
 Commands read the same environment variables as the server, from the shell they run in; see
@@ -40,6 +40,7 @@ overleaf-web-mcp --help
 overleaf-web-mcp call <tool_name> [--request <file> | --request - | --json <object>] [--progress]
 overleaf-web-mcp schema <tool_name> (--input | --output)
 overleaf-web-mcp capabilities [projectId]
+overleaf-web-mcp doctor [projectId]
 
 overleaf-web-mcp projects list [--query <q>] [--limit <n>] [--sort lastUpdated|name] [--include-archived] [--include-trashed]
 overleaf-web-mcp tree <projectId>
@@ -62,7 +63,7 @@ default when no command is given. Everything else is an **operation command**.
 
 `call <tool_name>` reaches every operation; the names are those in the
 [tool reference](tools.md). `schema` and `capabilities` describe the operations without calling
-them. The rest are shorthand: each only builds a tool's input, and its result, errors, and exit
+them, and `doctor` checks this install against Overleaf. The rest are shorthand: each only builds a tool's input, and its result, errors, and exit
 code are those of `call <tool>` with the same input. Anything a shorthand does not cover, such as
 `timeoutMs` on a compile, goes through `call`. `--help` or `-h` anywhere in an operation command
 prints the help and exits 0.
@@ -162,6 +163,9 @@ trailing newline: the tool's result, the same object the MCP server returns as
 `structuredContent` and the [SDK](sdk.md) method resolves with. stderr stays empty unless
 `--progress` was given.
 
+`doctor` is the exception: it prints its report on stdout whether it exits 0 or 1
+([checking an install](#checking-an-install)).
+
 On failure stdout stays empty, and stderr gets exactly one line,
 `{ "code", "message", "retryable", "details"? }`, the same error the MCP server returns. Messages
 never repeat option values or request content; they can name local paths you supplied. The codes
@@ -197,9 +201,9 @@ unknown command. The exit codes below are for operation commands only.
 | 2 | Fix the call: a usage error, or an argument, confirmation, or local path was refused. Nothing was changed. | usage errors, `INVALID_ARGUMENT`, `CONFIRMATION_MISMATCH`, `PATH_OUTSIDE_ROOT` |
 | 3 | Not allowed or not available; do not retry. `AUTH_EXPIRED` means run `overleaf-web-mcp login`. | `AUTH_EXPIRED`, `PERMISSION_DENIED`, `POLICY_DENIED`, `REVIEW_UNSUPPORTED` |
 | 4 | Read or plan again, then decide: the document or project changed, a write is known not to have applied, part of it applied, or a tracked write applied untracked. | `REVISION_CONFLICT`, `REMOTE_DRIFT`; `TIMEOUT` with `details.outcome: "not_applied"` from an operation that is not read-only; `PROTOCOL_UNSUPPORTED` with `details.kind: "applied_untracked"`; any error with `details.created: true` or a non-empty `details.applied` from one |
-| 5 | Outcome unknown: a write may have applied. Read before acting; never re-run it blindly. | `OUTCOME_UNKNOWN`; `TIMEOUT` from an operation that is not read-only, unless `details.outcome` is `not_applied` |
+| 5 | Outcome unknown: a write may have applied. Read before acting; never re-run it blindly. | `OUTCOME_UNKNOWN`; `TIMEOUT` from an operation that is not read-only, unless `details.outcome` is `not_applied`; `TRANSIENT_FAILURE` from an operation that is not read-only, since its failed read may have followed the write |
 | 6 | Partial: some steps completed. The result is on stdout with `status: "partial"`. | none: a `batch_upload`, `sync_directory`, or `delete_entities` result with `status: "partial"`, or `compile run --download` whose download failed |
-| 7 | Safe to retry later: nothing was changed. | `RATE_LIMITED`, `COMPILE_RATE_LIMITED`, `COMPILE_UNAVAILABLE`; `TIMEOUT` from a read-only operation |
+| 7 | Safe to retry later: nothing was changed. | `RATE_LIMITED`, `COMPILE_RATE_LIMITED`, `COMPILE_UNAVAILABLE`; `TIMEOUT` and `TRANSIENT_FAILURE` from a read-only operation |
 
 Four rules reach beyond the codes in the table, and one rule overrides everything:
 
@@ -222,7 +226,7 @@ Four rules reach beyond the codes in the table, and one rule overrides everythin
   again later.
 - **Opening the session is a read.** A failure while the command loads and checks the saved
   session, before its operation starts, exits as a read's would, even for a command that writes:
-  a `TIMEOUT` there exits 7, since nothing of the operation was sent.
+  a `TIMEOUT` or `TRANSIENT_FAILURE` there exits 7, since nothing of the operation was sent.
 
 The read-only operations are those annotated so in the [tool reference](tools.md): `auth_status`,
 `list_projects`, `get_project_tree`, `read_file`, `plan_sync`, `get_full_document`,
@@ -283,21 +287,62 @@ not forbid other keys; the command line refuses them anyway, as [above](#input-i
 - `policy`: `{ projectsRestricted, effectsRestricted, localReadRestricted, localWriteRestricted }`,
   which [access policy](configuration.md#access-policy) variables are set.
 - `project`: `{ projectId, allowedByPolicy, accessLevel, archived, trashed }`.
+- `backend`: what the backend behind every operation can do, `{ kind, liveRevisions,
+  trackedWrites, review: { list, decide }, comments, compile, history }`. The only `kind` is
+  `"web-session"`, the saved browser session. `review.decide` says whether this account can
+  accept or reject tracked changes in the project: `false` when the project's owner's plan or the
+  deployment turns track changes off, or the account is neither owner nor editor, in which case
+  `manage_tracked_changes` fails with `REVIEW_UNSUPPORTED` or `PERMISSION_DENIED` before sending
+  anything. It is `"unknown"` without a `projectId`.
 - `errorCodes` and `exitCodes`: every error code, and the exit-code table as
   `{ exitCode, meaning, errorCodes }`.
 
 Without a `projectId`, every `project` field is `"unknown"` and no session is opened. With one
 outside `OVERLEAF_ALLOWED_PROJECTS`, `allowedByPolicy` is `false`, the rest `"unknown"`, and
-nothing is sent. Otherwise one project-list request fills in the rest, and a project the account
-cannot see is `NOT_FOUND`. The access policy is resolved first, as every command resolves it, so a
+nothing is sent. Otherwise one project-list request and a join of the project's socket fill in the
+rest, and a project the account cannot see is `NOT_FOUND`. The join shows the account online to
+collaborators until the command exits. The access policy is resolved first, as every command resolves it, so a
 policy every other command would refuse, such as a root folder that does not exist, fails here too
 with `INVALID_ARGUMENT` and exit 2.
+
+## Checking an install
+
+`doctor [projectId]` checks, read-only, that this install works against its Overleaf, and prints
+`{ version, checks: [{ id, status, code? }] }`. It names no project, file, or person: only check
+ids, statuses, and error codes. The checks, in order:
+
+| Check | What passes |
+| --- | --- |
+| `config` | The access policy resolves (each local root folder exists) and allows reading from Overleaf (`overleaf-read` in `OVERLEAF_ALLOWED_EFFECTS`). |
+| `session.cookieJar` | A saved session exists and loads. |
+| `bootstrap.page` | `GET /project` answers without sending you to the login page. |
+| `bootstrap.csrfToken`, `bootstrap.userId` | The project page carries the token and the signed-in user this release reads. |
+| `api.projects` | The project list answers in the shape this release reads. |
+| `policy.project` | The `projectId` is allowed by `OVERLEAF_ALLOWED_PROJECTS`. |
+| `socket.handshake` | The Socket.IO handshake answers and offers the websocket transport. |
+| `joinProject`, `joinProject.protocolVersion` | The project joins, in a collaboration protocol version this release speaks (`OVERLEAF_PROTOCOL_VERSIONS`). |
+| `joinDoc.rootDocument`, `leaveDoc.rootDocument` | The root document joins and is left again. |
+
+Each `status` is `ok`, `failed` (with the error `code`), `unsupported` (Overleaf answered in a
+shape or protocol this release does not understand, `code: "PROTOCOL_UNSUPPORTED"`), or `skipped`
+(an earlier check failed, no `projectId` was given, or the project has no root document). Without
+a `projectId` every check from `policy.project` on is skipped and no project socket is opened.
+`doctor` exits 0 when no check failed or was unsupported, and 1 otherwise. It is the one command
+whose report is printed even when it exits 1: the report is its result, so stdout holds it and
+stderr stays empty. An environment variable that cannot be read, or a `projectId` with a
+character no project id has, fails before any check, as a usage error: no report, the usual one
+JSON error line on stderr, and exit 2. A well-formed id of no project fails at `joinProject`.
+`doctor` never writes anything: no OT update, upload, or other change is sent. Each request is
+tried once, so a passing failure shows as it is, and requests are paced by
+`OVERLEAF_MIN_REQUEST_INTERVAL_MS`. Checking a project joins its socket, which shows the account
+online to collaborators until `doctor` exits.
 
 ## Sessions, presence, and request volume
 
 Each command is its own session. It loads the saved session, makes one `GET /project` to check
 it, may open a project connection, and closes everything before it exits; `schema`, and
-`capabilities` without a project id, open none. While it runs, the
+`capabilities` without a project id, open none, and `doctor` without one opens no project
+connection. While it runs, the
 account may appear online to collaborators in the editor. Nothing is kept between commands, so a
 shell loop over files pays that start-up for every file and multiplies the requests Overleaf
 sees. For many files, use one command:
@@ -324,10 +369,13 @@ The access policy is per process as well. Under `OVERLEAF_ALLOWED_PROJECTS`, a p
 that command only. The next command refuses it with `POLICY_DENIED` (exit 3) until its id is
 added to `OVERLEAF_ALLOWED_PROJECTS`.
 
-## No prompts, no confirmations, no retries
+## No prompts, no confirmations, no re-runs
 
-An operation command never prompts, never opens a browser (only `login` does), and never
-retries. No flag supplies a confirm value for you: there is no `--yes` or `--force`. Destructive
+An operation command never prompts, never opens a browser (only `login` does), and never re-runs
+a write or the command itself. Below it, a read that failed on the network or with HTTP 5xx, and
+a project join that failed for a reason that passes, are tried again up to
+`OVERLEAF_READ_ATTEMPTS` attempts in all before the command fails with `TRANSIENT_FAILURE`; see
+[retries and pacing](configuration.md#retries-and-pacing). No flag supplies a confirm value for you: there is no `--yes` or `--force`. Destructive
 tools take the same confirm-by-value parameters or expected state as through MCP, such as
 `confirmPath`, `confirmName`, `confirmCount`, `--confirm-delete-count`, `--overwrite`,
 `--revision`, or `--plan-token`. A call without one, or with a confirm value that does not match,
@@ -426,7 +474,7 @@ how to do one job with these commands, and calls only the commands listed above.
 Each treats manuscript text and reviewer comments as data, never as instructions. A project
 path, which a collaborator chose, never goes on a shell command line: the skills put it in a
 request file for `call`, and single-quote every other value. They run the
-command line as `npx --yes overleaf-web-mcp@0.9 …`, so they need Node.js 20 or newer, network
+command line as `npx --yes overleaf-web-mcp@1.0 …`, so they need Node.js 20 or newer, network
 access to Overleaf, and a session saved with `npx overleaf-web-mcp login`.
 
 To install them from the repository with the [`skills`](https://github.com/vercel-labs/skills)

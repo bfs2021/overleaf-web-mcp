@@ -1137,6 +1137,7 @@
                   "PATH_OUTSIDE_ROOT",
                   "POLICY_DENIED",
                   "REMOTE_ERROR",
+                  "TRANSIENT_FAILURE",
                   "REVIEW_UNSUPPORTED",
                   "INCLUDE_CYCLE",
                   "INCLUDE_DEPTH_EXCEEDED"
@@ -1726,6 +1727,7 @@
                   "PATH_OUTSIDE_ROOT",
                   "POLICY_DENIED",
                   "REMOTE_ERROR",
+                  "TRANSIENT_FAILURE",
                   "REVIEW_UNSUPPORTED",
                   "INCLUDE_CYCLE",
                   "INCLUDE_DEPTH_EXCEEDED"
@@ -1926,6 +1928,7 @@
                   "PATH_OUTSIDE_ROOT",
                   "POLICY_DENIED",
                   "REMOTE_ERROR",
+                  "TRANSIENT_FAILURE",
                   "REVIEW_UNSUPPORTED",
                   "INCLUDE_CYCLE",
                   "INCLUDE_DEPTH_EXCEEDED"

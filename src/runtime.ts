@@ -1,8 +1,9 @@
 import type { AppConfig } from './config.js'
 import type { OverleafServiceRuntime } from './contracts/service.js'
-import { asMcpError, AUTH_LOGIN_INSTRUCTION, McpError } from './core/errors.js'
+import { asMcpError, McpError } from './core/errors.js'
+import { MAX_READ_ATTEMPTS, retryRead, type Sleep } from './core/retry.js'
 import { AccessPolicy } from './core/policy.js'
-import { parseBootstrapMeta, type BootstrapMeta } from './http/bootstrap.js'
+import { parseBootstrapMeta, requireCsrfToken, type BootstrapMeta } from './http/bootstrap.js'
 import { OverleafHttpClient } from './http/client.js'
 import { CookieStore } from './http/cookies.js'
 import { createProxyRoute, type ProxyRoute } from './http/proxy.js'
@@ -15,7 +16,7 @@ import { HistoryApi } from './overleaf/history.js'
 import { ProjectsApi } from './overleaf/projects.js'
 import { SectionsApi } from './overleaf/sections-api.js'
 import { SyncApi } from './overleaf/sync.js'
-import { TrackedChangesApi } from './overleaf/tracked-changes.js'
+import { canDecideTrackedChanges, TrackedChangesApi } from './overleaf/tracked-changes.js'
 import { resolveProjectPath, type EntityType } from './overleaf/tree.js'
 import { ProjectConnectionCache } from './protocol/connection-cache.js'
 import { openProjectConnection } from './protocol/connect.js'
@@ -69,11 +70,23 @@ async function createDocument(
   }
 }
 
+/**
+ * A project join that failed before Overleaf answered it, for a reason that passes: the socket
+ * closed, real-time failed, the handshake met a network failure or HTTP 5xx, or Overleaf asked for
+ * a retry. A refused, rate-limited, or timed-out join is not tried again.
+ */
+export function isTransientJoinFailure(error: McpError): boolean {
+  if (error.code === 'TRANSIENT_FAILURE') return true
+  return error.code === 'REMOTE_ERROR' && error.retryable
+}
+
 type Fetcher = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
 export interface RuntimeDependencies {
   fetcher?: Fetcher
   connectionFactory?: (projectId: string) => Promise<ProjectConnection>
+  /** Waits between attempts of a read; tests pass one that returns at once. */
+  sleep?: Sleep
 }
 
 /**
@@ -152,34 +165,35 @@ export class OverleafRuntime implements OverleafServiceRuntime {
     // One proxy decision, from readConfig, covers REST calls, the handshake, and the WebSocket.
     const proxy = config.proxyUrl === undefined ? undefined : createProxyRoute(config.proxyUrl)
     const fetcher = dependencies.fetcher ?? proxy?.fetcher
+    // A configuration built by hand may leave these out; readConfig's defaults apply.
+    const readAttempts = config.readAttempts ?? MAX_READ_ATTEMPTS
     const csrf = { token: undefined as string | undefined }
     const http = new OverleafHttpClient({
       baseUrl: config.baseUrl,
       jar: cookieStore.jar,
       defaultTimeoutMs: config.requestTimeoutMs,
+      readAttempts,
+      minRequestIntervalMs: config.minRequestIntervalMs ?? 0,
+      ...(dependencies.sleep === undefined ? {} : { sleep: dependencies.sleep }),
       csrfToken: () => csrf.token,
       persistSetCookies: async (url, values) => await cookieStore.mergeSetCookies(url, values),
       ...(fetcher === undefined ? {} : { fetcher }),
     })
 
     let bootstrap: BootstrapMeta
+    let csrfToken: string
     try {
       const bootstrapResponse = await http.request('GET', '/project')
       bootstrap = parseBootstrapMeta(await bootstrapResponse.text())
-      if (!bootstrap.csrfToken) {
-        throw new McpError(
-          'AUTH_EXPIRED',
-          `Overleaf did not expose an authenticated CSRF token. ${AUTH_LOGIN_INSTRUCTION}`
-        )
-      }
+      csrfToken = requireCsrfToken(bootstrap)
     } catch (error) {
       await proxy?.close()
       throw error
     }
-    csrf.token = bootstrap.csrfToken
+    csrf.token = csrfToken
 
     // Sockets are cached per project, while each document is freshly joined inside its queued call.
-    const factory =
+    const open =
       dependencies.connectionFactory ??
       (async (projectId: string) =>
         await openProjectConnection({
@@ -193,6 +207,14 @@ export class OverleafRuntime implements OverleafServiceRuntime {
           ...(fetcher === undefined ? {} : { fetcher }),
           ...(proxy === undefined ? {} : { webSocketAgent: proxy.webSocketAgent }),
         }))
+    // Joining sends nothing to the project, so a join that failed for a passing reason is a read to retry.
+    const factory = async (projectId: string) =>
+      await retryRead(async () => await open(projectId), {
+        attempts: readAttempts,
+        isTransient: isTransientJoinFailure,
+        details: { event: 'joinProject' },
+        ...(dependencies.sleep === undefined ? {} : { sleep: dependencies.sleep }),
+      })
     const connections = new ProjectConnectionCache<ProjectConnection>({
       capacity: config.socketCacheSize,
       idleTtlMs: config.socketIdleTtlMs,
@@ -324,6 +346,20 @@ export class OverleafRuntime implements OverleafServiceRuntime {
       socketPresenceNotice:
         'An active cached project socket can make this account appear online to collaborators until the idle timeout.',
     }
+  }
+
+  /**
+   * What the web-session backend can do in one project, read from a fresh `joinProject`: whether
+   * this account can decide tracked changes there. Joining shows the account online to
+   * collaborators until the socket idles out.
+   */
+  async reviewSupport(projectId: string): Promise<{ decide: boolean }> {
+    this.policy.assertProject(projectId)
+    this.policy.assertEffect('overleaf-read')
+    await this.connections.invalidate(projectId)
+    return await this.connections.withConnection(projectId, async connection =>
+      Promise.resolve({ decide: canDecideTrackedChanges(connection) })
+    )
   }
 
   async createFile(

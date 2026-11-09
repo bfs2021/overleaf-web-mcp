@@ -190,6 +190,25 @@ An upload that would replace a file, and a folder sync without a `planToken`, ar
 - Your session cookie stays on your machine in a file only you can read, and is never returned by any tool, command, or SDK method.
 - While a project is open, up to 90 seconds after the last call, you may appear online to collaborators. Each command is its own session, so for many files use one sync or batch command rather than a command per file.
 
+### Security model
+
+- **Your session.** Only cookies for the Overleaf origin are saved, to a file created readable by your user alone, and the session is refused if that file becomes readable by others (on Windows, where this cannot be checked, `auth_status` says so). No request leaves `OVERLEAF_BASE_URL` with them.
+- **What it prints.** Under `serve`, stdout carries MCP protocol frames and nothing else. `--help` prints plain text. Every other command prints one JSON value on stdout when it succeeds; when it fails, stdout stays empty and stderr gets one JSON error line. The exceptions are `login`'s plain-text status lines on stderr, `--progress` lines on stderr, and `doctor`, whose report is printed even when a check fails. Errors carry codes, counts, short identifiers, and the project or local paths the call involved; progress lines and `serve` diagnostics carry only counts, tool names, and codes. None of them carries cookies, document text, diffs, comment bodies, or Overleaf's own response text.
+- **Retries.** A write is never sent twice by the server, the command line, or the library. Only reads are tried again after a network failure or a server error, at most three attempts in all ([retries and pacing](https://mhmdaskari.github.io/overleaf-web-mcp/configuration/#retries-and-pacing)).
+- **The access policy's limits.** `OVERLEAF_ALLOWED_PROJECTS`, the local folder roots, and `OVERLEAF_ALLOWED_EFFECTS` are checked before any request, through every interface. They keep a cooperative assistant inside what you gave it. They do not protect against code running as your user, which can read the session file directly.
+
+### Terms of Service
+
+This is an unofficial client, not affiliated with Overleaf. It drives the same browser-facing endpoints the web editor uses, signed in as you, and that kind of automation of `www.overleaf.com` may be against Overleaf's Terms of Service and put your account at risk. You are responsible for how you use it. Keep request volume to what you would produce by hand, try it on a disposable project first, and prefer a self-hosted Overleaf for anything automated or heavy.
+
+### When Overleaf changes
+
+Overleaf can change its private endpoints at any time. When a response no longer has the shape this release reads, the call fails with `PROTOCOL_UNSUPPORTED` and nothing is guessed: no write goes ahead on a response it does not understand, and every document write is checked against a fresh read of the document before it is reported as done. Run `npx overleaf-web-mcp doctor <projectId>` to see which step fails. Its output names no project, file, or person, so it is safe to paste into an [issue](https://github.com/mhmdaskari/overleaf-web-mcp/issues).
+
+### Versioning
+
+From 1.0.0, [Semantic Versioning](https://semver.org) covers the tool names, input schemas, result shapes, and error codes; the command line's commands, flags, request format, output framing, and exit codes; the stable `overleaf-web-mcp/core` surface the [SDK page](https://mhmdaskari.github.io/overleaf-web-mcp/sdk/) lists; and the `capabilities` report. A breaking change waits for a major version, a deprecation is announced at least one minor version ahead with both names working, and the [changelog](https://mhmdaskari.github.io/overleaf-web-mcp/changelog/) records every change.
+
 ## How it compares
 
 The three most-starred Overleaf MCP servers and the two closest in design to this one, each checked against its own source code on 2026-10-25. They change often, so follow the links for their current state. The capability rows describe each project's MCP tools. ✅ supported, 🟡 partly (see the numbered notes), ❌ not supported.
@@ -253,7 +272,7 @@ The three most-starred Overleaf MCP servers and the two closest in design to thi
 | [Configuration](https://mhmdaskari.github.io/overleaf-web-mcp/configuration/) | Environment variables, the access policy, proxies, where the session is stored, and keeping it alive |
 | [Internals](https://mhmdaskari.github.io/overleaf-web-mcp/internals/) | Protocol notes, reliability guarantees, related projects |
 | [Contributing](https://mhmdaskari.github.io/overleaf-web-mcp/contributing/) | Reporting bugs and feedback, setting up, and opening a pull request |
-| [Roadmap](https://mhmdaskari.github.io/overleaf-web-mcp/roadmap/) and [Changelog](https://mhmdaskari.github.io/overleaf-web-mcp/changelog/) | Where this is going and what changed |
+| [Changelog](https://mhmdaskari.github.io/overleaf-web-mcp/changelog/) | What changed in each release |
 
 ## For AI agents
 

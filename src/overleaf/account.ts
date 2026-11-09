@@ -4,7 +4,7 @@ import { McpError } from '../core/errors.js'
 import { AccessPolicy } from '../core/policy.js'
 
 export interface JsonPoster {
-  postJson(path: string, body?: unknown): Promise<unknown>
+  postJson(path: string, body?: unknown, options?: { read?: boolean }): Promise<unknown>
 }
 
 export interface ProjectSummary {
@@ -88,7 +88,8 @@ export class AccountApi {
    */
   async fetchProjects(): Promise<{ projects: ProjectSummary[]; totalSize: number }> {
     this.#policy.assertEffect('overleaf-read')
-    const response = await this.#http.postJson('/api/project', {})
+    // A POST that only reads, so it is retried like a GET after a passing failure.
+    const response = await this.#http.postJson('/api/project', {}, { read: true })
     let parsed: z.infer<typeof projectListSchema>
     try {
       parsed = projectListSchema.parse(response)

@@ -457,7 +457,18 @@ export class ProjectsApi {
       // The cached join snapshot never learns about settings changes, applied in full or in part.
       await this.#options.invalidate(projectId)
     }
-    const tree = await this.#options.getProjectTree(projectId)
+    let tree: Awaited<ReturnType<ProjectsApiOptions['getProjectTree']>>
+    try {
+      tree = await this.#options.getProjectTree(projectId)
+    } catch (error) {
+      // Every setting is stored by now, so the error says so: a call to run again, it is not.
+      const cause = asMcpError(error)
+      throw new McpError(
+        cause.code,
+        `${cause.message} Every setting was stored (${applied.join(', ')}), but reading them back failed. Do not send them again; call get_project_tree to see them.`,
+        { retryable: false, details: { ...cause.details, applied: [...applied] }, cause }
+      )
+    }
     return {
       projectId,
       ...(tree.rootDocPath === undefined ? {} : { rootDocPath: tree.rootDocPath }),

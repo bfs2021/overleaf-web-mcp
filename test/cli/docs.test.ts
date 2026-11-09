@@ -101,7 +101,7 @@ describe('docs/cli.md', () => {
 })
 
 describe('docs/sdk.md', () => {
-  /** What the roadmap promises the stable surface names. */
+  /** The names docs/sdk.md promises as the stable surface. */
   const PROMISED = [
     'createOverleafClient',
     'createOverleafService',

@@ -38,6 +38,17 @@ function runtimeWithWrites(userId: string | null = 'user') {
   return { runtime, entities, documents }
 }
 
+async function savedSessionConfig(): Promise<ReturnType<typeof readConfig>> {
+  const directory = await mkdtemp(join(tmpdir(), 'overleaf-runtime-'))
+  const cookiePath = join(directory, 'cookies.txt')
+  await writeFile(
+    cookiePath,
+    '# Netscape HTTP Cookie File\n.overleaf.test\tTRUE\t/\tTRUE\t2147483647\toverleaf.sid\tsession\n'
+  )
+  if (process.platform !== 'win32') await chmod(cookiePath, 0o600)
+  return readConfig({ OVERLEAF_COOKIE_JAR_FILE: cookiePath, OVERLEAF_BASE_URL: 'https://overleaf.test' })
+}
+
 describe('runtime bootstrap', () => {
   test('loads a protected browser cookie jar and discovers account metadata', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'overleaf-runtime-'))
@@ -78,6 +89,133 @@ describe('runtime bootstrap', () => {
       sessionExpiresAt: '2038-01-19T03:14:07.000Z',
     })
     await runtime.close()
+  })
+
+  test.each([
+    // A signed-in page that no longer carries the token is a page shape this release does not read.
+    ['<meta name="ol-user_id" content="user">', 'PROTOCOL_UNSUPPORTED'],
+    // A page with neither, as the anonymous landing page, means the session is gone.
+    ['<html><body>Welcome</body></html>', 'AUTH_EXPIRED'],
+  ])('classifies a bootstrap page %j as %s', async (page, code) => {
+    const config = await savedSessionConfig()
+    await expect(
+      OverleafRuntime.create(config, { fetcher: async () => await Promise.resolve(new Response(page)) })
+    ).rejects.toMatchObject({ code })
+  })
+
+  test.each([
+    [{ trackChanges: false }, 'owner', false],
+    [{ trackChanges: true }, 'owner', true],
+    [{ trackChanges: true }, 'readOnly', false],
+    [undefined, 'readAndWrite', true],
+  ])('reviewSupport reads features %j and access %s from a fresh join', async (features, level, decide) => {
+    const config = await savedSessionConfig()
+    const close = vi.fn()
+    const runtime = await OverleafRuntime.create(config, {
+      fetcher: async () =>
+        await Promise.resolve(
+          new Response('<meta name="ol-csrfToken" content="csrf"><meta name="ol-user_id" content="user">')
+        ),
+      connectionFactory: async () =>
+        await Promise.resolve({
+          permissionsLevel: level,
+          project: features === undefined ? {} : { features },
+          closed: false,
+          close,
+        } as unknown as ProjectConnection),
+    })
+    await expect(runtime.reviewSupport('project')).resolves.toEqual({ decide })
+    await runtime.close()
+    expect(close).toHaveBeenCalled()
+  })
+
+  describe('project join retry', () => {
+    const page = async (): Promise<Response> =>
+      await Promise.resolve(
+        new Response('<meta name="ol-csrfToken" content="csrf"><meta name="ol-user_id" content="user">')
+      )
+    const joined = (close = vi.fn()) =>
+      ({ permissionsLevel: 'owner', project: {}, closed: false, close }) as unknown as ProjectConnection
+    const passing = () =>
+      new McpError('REMOTE_ERROR', 'Socket disconnected during project join.', {
+        retryable: true,
+        details: { reason: 'disconnected' },
+      })
+
+    test('joins again after a passing failure and uses the connection that followed', async () => {
+      const sleep = vi.fn(async () => await Promise.resolve())
+      const connectionFactory = vi
+        .fn<(projectId: string) => Promise<ProjectConnection>>()
+        .mockRejectedValueOnce(passing())
+        .mockResolvedValueOnce(joined())
+      const runtime = await OverleafRuntime.create(await savedSessionConfig(), {
+        fetcher: page,
+        connectionFactory,
+        sleep,
+      })
+      await expect(runtime.reviewSupport('project')).resolves.toEqual({ decide: true })
+      expect(connectionFactory).toHaveBeenCalledTimes(2)
+      expect(sleep).toHaveBeenCalledTimes(1)
+      await runtime.close()
+    })
+
+    test('ends in TRANSIENT_FAILURE naming the join after OVERLEAF_READ_ATTEMPTS attempts', async () => {
+      const connectionFactory = vi.fn(async () => await Promise.reject(passing()))
+      const config = { ...(await savedSessionConfig()), readAttempts: 2 }
+      const runtime = await OverleafRuntime.create(config, {
+        fetcher: page,
+        connectionFactory,
+        sleep: async () => await Promise.resolve(),
+      })
+      await expect(runtime.reviewSupport('project')).rejects.toMatchObject({
+        code: 'TRANSIENT_FAILURE',
+        retryable: true,
+        details: { attempts: 2, lastCode: 'REMOTE_ERROR', reason: 'disconnected', event: 'joinProject' },
+      })
+      expect(connectionFactory).toHaveBeenCalledTimes(2)
+      await runtime.close()
+    })
+
+    test.each([
+      new McpError('RATE_LIMITED', 'limited', { retryable: true }),
+      new McpError('TIMEOUT', 'slow', { retryable: true }),
+      new McpError('PERMISSION_DENIED', 'no'),
+    ])('does not join again after %s', async error => {
+      const connectionFactory = vi.fn(async () => await Promise.reject(error))
+      const runtime = await OverleafRuntime.create(await savedSessionConfig(), {
+        fetcher: page,
+        connectionFactory,
+        sleep: async () => await Promise.resolve(),
+      })
+      await expect(runtime.reviewSupport('project')).rejects.toBe(error)
+      expect(connectionFactory).toHaveBeenCalledTimes(1)
+      await runtime.close()
+    })
+
+    test('a configuration built without the retry fields joins up to three times, never forever', async () => {
+      const config = await savedSessionConfig()
+      delete config.readAttempts
+      delete config.minRequestIntervalMs
+      const connectionFactory = vi.fn(async () => await Promise.reject(passing()))
+      const runtime = await OverleafRuntime.create(config, {
+        fetcher: page,
+        connectionFactory,
+        sleep: async () => await Promise.resolve(),
+      })
+      await expect(runtime.reviewSupport('project')).rejects.toMatchObject({ code: 'TRANSIENT_FAILURE' })
+      expect(connectionFactory).toHaveBeenCalledTimes(3)
+      await runtime.close()
+    })
+  })
+
+  test('still reports a redirect to /login as AUTH_EXPIRED', async () => {
+    const config = await savedSessionConfig()
+    const fetcher = async (): Promise<Response> => {
+      const response = new Response('<html>login</html>')
+      Object.defineProperty(response, 'url', { value: 'https://overleaf.test/login' })
+      return await Promise.resolve(response)
+    }
+    await expect(OverleafRuntime.create(config, { fetcher })).rejects.toMatchObject({ code: 'AUTH_EXPIRED' })
   })
 
   test('tracks non-empty initial file content when requested', async () => {

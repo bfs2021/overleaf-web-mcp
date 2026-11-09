@@ -96,6 +96,8 @@ export async function createTestRuntime(options: TestRuntimeOptions = {}) {
         throw new Error(`unexpected ${method} ${url.pathname}`)
       },
       connectionFactory,
+      // Retries keep their attempts, without real waits between them.
+      sleep: async () => await Promise.resolve(),
     }
   )
   return { runtime, fetches, socketCalls, connectionFactory, cookiePath, directory, root }

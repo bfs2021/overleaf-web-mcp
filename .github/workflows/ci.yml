@@ -78,4 +78,5 @@ jobs:
           '
 
       - name: Verify packed contents
-        run: npm pack --dry-run
+        # tsx, since Node 20 cannot run TypeScript directly.
+        run: npx tsx scripts/check-pack.ts

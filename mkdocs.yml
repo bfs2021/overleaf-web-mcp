@@ -49,7 +49,6 @@ nav:
   - Private API: private-api.md
   - Development: development.md
   - Contributing: contributing.md
-  - Roadmap: roadmap.md
   - Changelog: changelog.md
 
 markdown_extensions:

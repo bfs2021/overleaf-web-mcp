@@ -31,7 +31,7 @@ export const EXIT_CODES = [
   {
     exitCode: 5,
     meaning: 'Outcome unknown: a write may have applied. Read before acting; never re-run it blindly.',
-    errorCodes: ['OUTCOME_UNKNOWN', 'TIMEOUT'],
+    errorCodes: ['OUTCOME_UNKNOWN', 'TIMEOUT', 'TRANSIENT_FAILURE'],
   },
   {
     exitCode: 6,
@@ -41,7 +41,7 @@ export const EXIT_CODES = [
   {
     exitCode: 7,
     meaning: 'Safe to retry later: nothing was changed.',
-    errorCodes: ['RATE_LIMITED', 'COMPILE_RATE_LIMITED', 'COMPILE_UNAVAILABLE', 'TIMEOUT'],
+    errorCodes: ['RATE_LIMITED', 'COMPILE_RATE_LIMITED', 'COMPILE_UNAVAILABLE', 'TRANSIENT_FAILURE', 'TIMEOUT'],
   },
 ] as const satisfies ReadonlyArray<{ exitCode: number; meaning: string; errorCodes: readonly ErrorCode[] }>
 
@@ -52,7 +52,12 @@ const NOT_ALLOWED: ReadonlySet<ErrorCode> = new Set([
   'POLICY_DENIED',
   'REVIEW_UNSUPPORTED',
 ])
-const RETRY_LATER: ReadonlySet<ErrorCode> = new Set(['RATE_LIMITED', 'COMPILE_RATE_LIMITED', 'COMPILE_UNAVAILABLE'])
+const RETRY_LATER: ReadonlySet<ErrorCode> = new Set([
+  'RATE_LIMITED',
+  'COMPILE_RATE_LIMITED',
+  'COMPILE_UNAVAILABLE',
+  'TRANSIENT_FAILURE',
+])
 
 /** Whether the operation changes nothing on Overleaf and writes nothing locally. */
 export function isReadOnly(operation: OperationName | undefined): boolean {
@@ -85,6 +90,9 @@ export function exitCodeForError(error: McpError, operation?: OperationName): nu
     if (readOnly) return 7
     return outcome === 'not_applied' ? 4 : 5
   }
+  // The read that failed changed nothing, but an operation that writes may have read after its
+  // write, as to read a result back, so only a read-only one is promised to have changed nothing.
+  if (error.code === 'TRANSIENT_FAILURE') return readOnly ? 7 : 5
   // A write observed not to have applied, as after a lost socket, is as safe as a stale revision.
   if (!readOnly && operation !== undefined && outcome === 'not_applied') return 4
   if (RETRY_LATER.has(error.code)) return 7

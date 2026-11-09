@@ -434,7 +434,7 @@ Returns:
   or when nothing was attempted; `false` when the read-back failed, in which case the entries are
   as the uploads reported them.
 
-Nothing is retried. A client that sends a progress token receives `notifications/progress` as
+No upload is sent twice. A client that sends a progress token receives `notifications/progress` as
 each file is uploaded; on the command line, `--progress` writes the same steps to stderr as JSON
 lines.
 
@@ -542,7 +542,7 @@ sends a progress token receives `notifications/progress` as documents are read a
 applied; on the command line, `--progress` writes the same steps to stderr as JSON lines.
 
 The usual sequence is `plan_sync`, a look at the plan with the user, then `sync_directory` with
-the plan's `planToken`. The reference cleanup the roadmap was written from, four changed files
+the plan's `planToken`. The reference cleanup this tool was designed from, four changed files
 uploaded, twenty stale entities deleted, and nine identical figures left alone, is those two
 calls.
 
@@ -668,7 +668,7 @@ What happens, in order:
    entity's id, and for a folder everything inside it, is checked against the plan; anything
    that changed is left in place and reported as `REMOTE_DRIFT`.
 
-Nothing is retried automatically. Returns `status` (`complete`, or `partial` when anything failed
+No step is retried automatically. Returns `status` (`complete`, or `partial` when anything failed
 or was not attempted), `mode`, `completed` (`{ destinationPath, action, entityId? }`), `failed`
 (`{ destinationPath, action, errorCode, message, details?, kind? }`, where `errorCode` is one of the codes
 in the [safety model](safety.md#error-codes) and `details` is the failed step's own error

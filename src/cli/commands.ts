@@ -373,6 +373,10 @@ export const GENERIC_USAGE = [
   },
   { usage: 'schema <tool_name> (--input | --output)', summary: "Print an operation's input or output JSON Schema" },
   { usage: 'capabilities [projectId]', summary: 'List operations, effects, the access policy, and exit codes' },
+  {
+    usage: 'doctor [projectId]',
+    summary: 'Check, read-only, that the session, Overleaf, and a project socket work with this release',
+  },
 ] as const
 
 /** The first words that select an operation command; anything else is a server or session command. */
@@ -380,5 +384,6 @@ export const OPERATION_COMMAND_WORDS: ReadonlySet<string> = new Set([
   'call',
   'schema',
   'capabilities',
+  'doctor',
   ...ALIASES.map(alias => alias.words[0]),
 ])

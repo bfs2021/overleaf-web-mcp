@@ -117,6 +117,20 @@ Restart the client so it starts the server, then ask it to check your Overleaf c
 runs `auth_status`, which reports the account's project count without exposing anything else.
 From a shell, `npx overleaf-web-mcp call auth_status` runs the same check and exits 0.
 
+If something does not work, `npx overleaf-web-mcp doctor <projectId>` checks, read-only, each
+step from the saved session to joining a project's root document, and names the first one that
+fails; see [checking an install](cli.md#checking-an-install).
+
+## Compatibility
+
+The server answers the 2025-era MCP protocol versions, 2024-10-07 through 2025-11-25, with an
+`initialize` handshake, and 2026-07-28 with `server/discover`. The test suite drives both eras
+through the real stdio server over piped streams, a 2025-11-25 client and a 2026-07-28 client,
+and checks that each receives the usage instructions, lists every tool, and sees nothing on stdout
+but JSON-RPC. If a client does not work, run `npx overleaf-web-mcp doctor <projectId>` and
+[open an issue](https://github.com/mhmdaskari/overleaf-web-mcp/issues) with its output, the client,
+and the client's version.
+
 ## Without an MCP client
 
 Skip steps 2 and 3. Once you have signed in, every tool is also a command:
@@ -155,6 +169,10 @@ in `$(npm root -g)/overleaf-web-mcp/skills` after a global install;
       "$(dirname "$(nvm which 22)")/node" \
       "$(npm root -g)/overleaf-web-mcp/dist/cli.js" serve
     ```
+
+**Not sure which part is failing.** Run `npx overleaf-web-mcp doctor`, and with a project id
+`npx overleaf-web-mcp doctor <projectId>`. It reports each check as `ok`, `failed` with its error
+code, `unsupported`, or `skipped`, and never changes anything.
 
 **"Connection closed" or "server exited" at startup, and nothing else.** The server checks the
 saved session before it answers the client, and an expired session makes it exit with

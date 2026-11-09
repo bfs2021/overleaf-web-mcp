@@ -14,7 +14,7 @@ export type SocketPacket =
   | { type: 'noop' }
   | { type: 'event'; name: string; args: unknown[]; ackId?: number }
   | { type: 'ack'; ackId: number; args: unknown[] }
-  | { type: 'error'; reason: string }
+  | { type: 'error'; reason: string; advice?: string }
   | { type: 'message'; value: string }
 
 export function parseHandshake(value: string): SocketHandshake {
@@ -41,6 +41,10 @@ export function encodeEventPacket(name: string, args: unknown[], ackId?: number)
   const id = ackId === undefined ? '' : `${ackId}+`
   return `5:${id}::${JSON.stringify({ name, args })}`
 }
+
+/** Socket.IO 0.9's error reasons and advice, by the index its parser encodes. */
+const ERROR_REASONS = ['transport not supported', 'client not handshaken', 'unauthorized']
+const ERROR_ADVICE = ['reconnect']
 
 export function parseSocketPacket(value: string): SocketPacket {
   if (value === '0::') return { type: 'disconnect' }
@@ -87,6 +91,12 @@ export function parseSocketPacket(value: string): SocketPacket {
       })
     }
   }
-  if (type === '7') return { type: 'error', reason: data ?? 'socket error' }
+  if (type === '7') {
+    // Socket.IO 0.9 sends an error's reason and advice as indices, `reason+advice`.
+    const [rawReason = '', rawAdvice] = (data ?? '').split('+')
+    const reason = /^\d+$/u.test(rawReason) ? ERROR_REASONS[Number(rawReason)] : undefined
+    const advice = rawAdvice !== undefined && /^\d+$/u.test(rawAdvice) ? ERROR_ADVICE[Number(rawAdvice)] : undefined
+    return { type: 'error', reason: reason ?? (data || 'socket error'), ...(advice === undefined ? {} : { advice }) }
+  }
   throw new McpError('PROTOCOL_UNSUPPORTED', `Unsupported Socket.IO packet type ${type}.`)
 }

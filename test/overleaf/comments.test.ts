@@ -1,8 +1,10 @@
+import { CookieJar } from 'tough-cookie'
 import { describe, expect, test, vi } from 'vitest'
 
 import { McpError } from '../../src/core/errors.js'
 import { FifoQueue } from '../../src/core/queue.js'
 import { createRevision } from '../../src/core/revision.js'
+import { OverleafHttpClient } from '../../src/http/client.js'
 import { CommentsApi } from '../../src/overleaf/comments.js'
 import type { JoinedDocument } from '../../src/protocol/project-connection.js'
 
@@ -228,6 +230,42 @@ describe('review comments API', () => {
     expect(result.threads[0]).toMatchObject({ id: 'open', unlocated: true })
     expect(connection.joinDocument).not.toHaveBeenCalled()
   })
+
+  test.each([
+    ['HTTP 500', async () => await Promise.resolve(new Response('busy', { status: 500 }))],
+    [
+      'a network failure',
+      async () => {
+        throw new TypeError('fetch failed')
+      },
+    ],
+  ])(
+    'still lists threads unlocated when the range route keeps failing with %s through retries',
+    async (_name, ranges) => {
+      const rangeRequests = vi.fn(ranges)
+      const http = new OverleafHttpClient({
+        baseUrl: 'https://overleaf.test',
+        jar: new CookieJar(),
+        readAttempts: 3,
+        sleep: async () => await Promise.resolve(),
+        fetcher: async (url: string) => {
+          if (url.endsWith('/threads')) {
+            return new Response(JSON.stringify(threads), { headers: { 'content-type': 'application/json' } })
+          }
+          return await rangeRequests()
+        },
+      })
+      const { connection, connections } = connectionHarness([])
+      const api = new CommentsApi(http, connections, { currentUserId: 'user' })
+
+      const result = await api.listComments('project')
+
+      expect(result.positionsUnavailable).toBe(true)
+      expect(result.threads[0]).toMatchObject({ id: 'open', unlocated: true })
+      expect(rangeRequests).toHaveBeenCalledTimes(3)
+      expect(connection.joinDocument).not.toHaveBeenCalled()
+    }
+  )
 
   test('joins a filePath document only once while resolving its matching threads', async () => {
     const http = {

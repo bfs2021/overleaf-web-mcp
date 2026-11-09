@@ -125,7 +125,7 @@ describe('upstream text never reaches an error', () => {
       })
     )
     expect(text).not.toContain(SENTINEL)
-    expect(JSON.parse(text)).toMatchObject({ code: 'AUTH_EXPIRED', details: { reason: 'unrecognized' } })
+    expect(JSON.parse(text)).toMatchObject({ code: 'REMOTE_ERROR', details: { reason: 'unrecognized' } })
   })
 
   test('an upload body with free text in error', async () => {

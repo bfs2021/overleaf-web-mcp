@@ -314,7 +314,10 @@ export class CommentsApi {
       try {
         indexedRanges = projectRanges(await this.#http.getJson(`/project/${encodeURIComponent(projectId)}/ranges`))
       } catch (error) {
-        if (error instanceof McpError && ['NOT_FOUND', 'REMOTE_ERROR', 'PROTOCOL_UNSUPPORTED'].includes(error.code)) {
+        if (
+          error instanceof McpError &&
+          ['NOT_FOUND', 'REMOTE_ERROR', 'TRANSIENT_FAILURE', 'PROTOCOL_UNSUPPORTED'].includes(error.code)
+        ) {
           positionsUnavailable = true
         } else {
           throw error

@@ -1,3 +1,3 @@
 export const SERVER_NAME = 'overleaf-web-mcp'
-export const SERVER_VERSION = '0.9.0'
+export const SERVER_VERSION = '1.0.0'
 export const USER_AGENT = `${SERVER_NAME}/${SERVER_VERSION}`

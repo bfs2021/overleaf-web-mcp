@@ -550,6 +550,60 @@ describe('stdio lifecycle', () => {
     for (const line of lines) expect((JSON.parse(line) as { jsonrpc?: unknown }).jsonrpc).toBe('2.0')
   })
 
+  /**
+   * A client transport over the server's own stdin and stdout streams, one JSON-RPC message per
+   * line, as a real MCP client's stdio transport frames them.
+   */
+  function pipeTransport(input: PassThrough, lines: string[]) {
+    let seen = 0
+    let timer: ReturnType<typeof setInterval> | undefined
+    const transport = {
+      onmessage: undefined as ((message: any) => void) | undefined,
+      onclose: undefined as (() => void) | undefined,
+      onerror: undefined as ((error: Error) => void) | undefined,
+      async start() {
+        timer = setInterval(() => {
+          while (seen < lines.length) transport.onmessage?.(JSON.parse(lines[seen++]!))
+        }, 1)
+        await Promise.resolve()
+      },
+      async send(message: unknown) {
+        input.write(`${JSON.stringify(message)}\n`)
+        await Promise.resolve()
+      },
+      async close() {
+        clearInterval(timer)
+        input.end()
+        transport.onclose?.()
+        await Promise.resolve()
+      },
+    }
+    return transport
+  }
+
+  test.each([
+    ['2025-11-25', 'legacy'],
+    ['2026-07-28', 'modern'],
+  ] as const)('a %s client receives the instructions over stdio and stdout stays JSON-RPC', async (version, era) => {
+    const { input, lines, close, exit } = stdio(fakeRuntime())
+    const client = new Client(
+      { name: `stdio-${version}`, version: '1.0.0' },
+      { versionNegotiation: { mode: era === 'modern' ? { pin: version } : 'legacy' } }
+    )
+    await client.connect(pipeTransport(input, lines))
+
+    expect(client.getProtocolEra()).toBe(era)
+    expect(client.getNegotiatedProtocolVersion()).toBe(version)
+    expect(client.getInstructions()).toBe(SERVER_INSTRUCTIONS)
+    if (era === 'modern') expect((await client.discover()).instructions).toBe(SERVER_INSTRUCTIONS)
+    expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(TOOL_NAMES)
+    await client.close()
+
+    await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(0))
+    expect(close).toHaveBeenCalledTimes(1)
+    for (const line of lines) expect((JSON.parse(line) as { jsonrpc?: unknown }).jsonrpc).toBe('2.0')
+  })
+
   test('lets a running tool call finish before closing the runtime when stdin closes', async () => {
     const { runtime, running, release } = runtimeWithSlowPlan()
     const { input, close, exit, send, initialize } = stdio(runtime)

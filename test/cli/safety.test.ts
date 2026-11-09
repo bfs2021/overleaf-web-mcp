@@ -243,6 +243,8 @@ async function handshakeRuntime(style: Style) {
       if ((init?.method ?? 'GET') === 'GET' && url.pathname === '/project') return new Response(BOOTSTRAP_PAGE)
       return await reflect(input, init)
     },
+    // Retries keep their attempts, without real waits between them.
+    sleep: async () => await Promise.resolve(),
   })
   return { runtime, env }
 }

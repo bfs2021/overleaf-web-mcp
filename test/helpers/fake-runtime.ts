@@ -15,6 +15,7 @@ export function fakeServiceRuntime() {
       listProjects: resolved(OUTPUTS.list_projects),
       findProject: resolved(OUTPUTS.list_projects.projects[0]),
     },
+    reviewSupport: resolved({ decide: true }),
     projects: {
       createProject: resolved(OUTPUTS.create_project),
       cloneProject: resolved(OUTPUTS.clone_project),

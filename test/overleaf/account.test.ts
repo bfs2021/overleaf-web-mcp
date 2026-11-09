@@ -21,7 +21,7 @@ describe('account API', () => {
 
     const listing = await account.listProjects()
 
-    expect(http.postJson).toHaveBeenCalledWith('/api/project', {})
+    expect(http.postJson).toHaveBeenCalledWith('/api/project', {}, { read: true })
     expect(listing.projects.map(project => project.id)).toEqual(['a', 'b', 'e'])
     expect(listing.projects[0]).toEqual({
       id: 'a',

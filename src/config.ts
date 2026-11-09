@@ -1,6 +1,7 @@
 import { delimiter, isAbsolute } from 'node:path'
 
 import { McpError } from './core/errors.js'
+import { MAX_READ_ATTEMPTS } from './core/retry.js'
 import { resolveAuthPaths } from './auth/paths.js'
 import { EFFECTS, type Effect } from './contracts/effects.js'
 import { resolveProxyUrl } from './http/proxy.js'
@@ -19,6 +20,10 @@ export interface AppConfig {
   applyTimeoutMs: number
   recoveryTimeoutMs: number
   compileTimeoutMs: number
+  /** Attempts of a read after a transient failure, 1 to 3, 3 when absent; writes are never retried. */
+  readAttempts?: number
+  /** The least time between the starts of two REST requests; absent or 0 paces nothing. */
+  minRequestIntervalMs?: number
   supportedProtocolVersions: number[]
   /** Proxy for every connection to `baseUrl`; absent to connect directly. */
   proxyUrl?: string
@@ -38,6 +43,16 @@ function positiveInteger(env: NodeJS.ProcessEnv, name: string, fallback: number)
   const parsed = Number(raw)
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new McpError('INVALID_ARGUMENT', `${name} must be a positive integer.`)
+  }
+  return parsed
+}
+
+function nonNegativeInteger(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
+  const raw = env[name]
+  if (raw === undefined || raw === '') return fallback
+  const parsed = Number(raw)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new McpError('INVALID_ARGUMENT', `${name} must be zero or a positive integer.`)
   }
   return parsed
 }
@@ -120,6 +135,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env, context: Config
     applyTimeoutMs: positiveInteger(env, 'OVERLEAF_APPLY_TIMEOUT_MS', 30_000),
     recoveryTimeoutMs: positiveInteger(env, 'OVERLEAF_RECOVERY_TIMEOUT_MS', 30_000),
     compileTimeoutMs: Math.min(positiveInteger(env, 'OVERLEAF_COMPILE_TIMEOUT_MS', 120_000), 15 * 60_000),
+    readAttempts: Math.min(positiveInteger(env, 'OVERLEAF_READ_ATTEMPTS', MAX_READ_ATTEMPTS), MAX_READ_ATTEMPTS),
+    minRequestIntervalMs: Math.min(nonNegativeInteger(env, 'OVERLEAF_MIN_REQUEST_INTERVAL_MS', 0), 60_000),
     supportedProtocolVersions,
     ...(proxyUrl === undefined ? {} : { proxyUrl }),
     ...(allowedProjects === undefined ? {} : { allowedProjects }),

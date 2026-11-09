@@ -6,7 +6,6 @@ on:
     paths:
       - "docs/**"
       - "mkdocs.yml"
-      - "ROADMAP.md"
       - "CHANGELOG.md"
       - "CONTRIBUTING.md"
       - ".github/workflows/docs.yml"

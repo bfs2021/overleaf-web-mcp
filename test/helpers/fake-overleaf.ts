@@ -382,6 +382,8 @@ export async function fakeSession(
     OVERLEAF_RECOVERY_TIMEOUT_MS: '500',
   })
   const dependencies: RuntimeDependencies = {
+    // Retries keep their attempts, without real waits between them.
+    sleep: async () => await Promise.resolve(),
     fetcher: async (input, init) => {
       const url = new URL(input instanceof Request ? input.url : String(input))
       const method = init?.method ?? 'GET'

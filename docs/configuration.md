@@ -23,6 +23,8 @@ process, which `readConfig()` reads from `process.env`. Defaults suit `www.overl
 | `OVERLEAF_APPLY_TIMEOUT_MS` | `30000` | OT acknowledgement and application timeout |
 | `OVERLEAF_RECOVERY_TIMEOUT_MS` | `30000` | Ambiguous-mutation observation window |
 | `OVERLEAF_COMPILE_TIMEOUT_MS` | `120000` | Default compile wait, capped at 15 minutes |
+| `OVERLEAF_READ_ATTEMPTS` | `3` | Attempts of a read after a transient failure, 1 (no retry) to 3; see [retries and pacing](#retries-and-pacing) |
+| `OVERLEAF_MIN_REQUEST_INTERVAL_MS` | `0` | Least time between the starts of two REST requests, at most 60000 |
 | `HTTPS_PROXY`, `https_proxy` | Unset | Proxy for an `https://` base URL; see [behind a proxy](#behind-a-proxy) |
 | `HTTP_PROXY`, `http_proxy` | Unset | Proxy for an `http://` base URL |
 | `NO_PROXY`, `no_proxy` | Unset | Hosts reached directly, bypassing the proxy |
@@ -40,6 +42,25 @@ waits, not the account's server-side compile allowance.
 
 `download_project_zip.timeoutMs` (1 second to 15 minutes, default 5 minutes) bounds a whole-project
 download, the whole transfer included, in place of `OVERLEAF_REQUEST_TIMEOUT_MS`.
+
+## Retries and pacing
+
+Only reads are ever sent again. A read, a `GET` or the project list's `POST /api/project`, that
+failed on the network, was cut off, or answered HTTP 5xx, and a project join that failed for a
+reason that passes (Overleaf asked the client to come back, as while restarting, the socket closed
+or failed before Overleaf answered, or the handshake failed on the network or with HTTP 5xx), are
+tried again after a short randomized backoff, up to `OVERLEAF_READ_ATTEMPTS` attempts in all, so
+at most two retries. When every attempt failed that way, the call fails with `TRANSIENT_FAILURE`,
+`details.attempts`, and `details.lastCode`; the command line exits 7 for a read-only operation. A
+tool that writes can also read, before its change or after it to read the result back, so from
+one it exits 5: read before running it again. Nothing else is retried: no request that changes
+something, no OT update, upload, or delete, and no read that timed out, was rate-limited, or was
+refused. A timed-out write is observed, never resubmitted, as before. A whole-project download,
+read as a stream, is not retried once its answer has started.
+
+`OVERLEAF_MIN_REQUEST_INTERVAL_MS` spaces the starts of REST requests from one process, for a
+deployment that rate-limits closely. It does not pace the collaboration socket, and two processes
+are not paced against each other.
 
 ## Where the session is stored
 
