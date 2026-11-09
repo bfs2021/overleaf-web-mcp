@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url'
 
 import { beforeAll, describe, expect, test } from 'vitest'
 
+import type { CapabilitiesReport } from '../../src/cli/capabilities.js'
+import { DOCTOR_CHECK_IDS, type DoctorReport } from '../../src/cli/doctor.js'
 import type { OperationOutput } from '../../src/contracts/operations.js'
 
 /**
@@ -87,7 +89,7 @@ describe.skipIf(!enabled)('command line against a throwaway Overleaf project', (
   })
 
   test(
-    'creates, reads, writes, syncs, compiles, reads the log, and trashes a project through spawned commands',
+    'creates, reads, writes, syncs, compiles, reads the log, checks the install, and trashes a project through spawned commands',
     async () => {
       const name = `mcp-cli-${Date.now()}`
       const scratch = await mkdtemp(join(tmpdir(), 'overleaf-live-cli-'))
@@ -158,6 +160,19 @@ describe.skipIf(!enabled)('command line against a throwaway Overleaf project', (
         )
         expect(log.errorLines).toEqual([])
         expect(log.buildId).toEqual(expect.any(String))
+
+        // doctor checks every step read-only and names no project, file, or person.
+        const doctor = succeeded<DoctorReport>(await runCli(['doctor', projectId], env))
+        expect(doctor.checks.map(check => check.id)).toEqual([...DOCTOR_CHECK_IDS])
+        expect(doctor.checks.filter(check => check.status !== 'ok')).toEqual([])
+        expect(JSON.stringify(doctor)).not.toContain(projectId)
+        expect(JSON.stringify(doctor)).not.toContain(name)
+
+        // The account owns the project, so it can decide tracked changes there unless its plan says no.
+        const capabilities = succeeded<CapabilitiesReport>(await runCli(['capabilities', projectId], env))
+        expect(capabilities.project).toMatchObject({ projectId, allowedByPolicy: true, accessLevel: 'owner' })
+        expect(capabilities.backend).toMatchObject({ kind: 'web-session', review: { list: true } })
+        expect(typeof capabilities.backend.review.decide).toBe('boolean')
       } finally {
         if (projectId !== undefined) {
           // Trash, never delete: a failed step must leave something a human can inspect.
