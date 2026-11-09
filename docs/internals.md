@@ -246,7 +246,8 @@ lifecycle tools, the verified-write guarantees described above, and folder sync 
 the TypeScript client over the same engine shipped in 0.7.0, and accepting and rejecting tracked
 changes, on history-OT documents as well as ShareJS ones, in 0.8.0, and multi-file documents
 (`get_full_document`, and `followIncludes` on the section tools, across `\input`, `\include`,
-`\subfile`, and `\import`) in 0.9.0; the [roadmap](roadmap.md) covers what comes before 1.0.0.
+`\subfile`, and `\import`) in 0.9.0, and 1.0.0 classified socket rejections, retried transient
+reads, and added `doctor` and the backend capabilities.
 
 Review-range investigation was informed by
 [Overleaf Comment Exporter](https://github.com/salokr/overleaf-comment-exporter). Real-time

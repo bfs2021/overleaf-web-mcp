@@ -17,7 +17,7 @@ async function folder(files: Record<string, string>): Promise<string> {
 }
 
 describe('sync ignore rules', () => {
-  test('ship the roadmap defaults and name the pattern that matched', async () => {
+  test('ship the documented defaults and name the pattern that matched', async () => {
     const rules = await loadSyncIgnoreRules(await folder({}))
 
     expect(DEFAULT_SYNC_IGNORE).toEqual(expect.arrayContaining(['.*', '__MACOSX/', '*.aux', '*.synctex.gz', '*.fls']))

@@ -121,9 +121,9 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
 ## Documentation
 
 - `README.md` is for people. Keep it short and plain, and link to the site for detail.
-- Reference material lives in `docs/*.md`. `docs/roadmap.md`, `docs/changelog.md`, and
-  `docs/contributing.md` include the root `ROADMAP.md`, `CHANGELOG.md`, and `CONTRIBUTING.md`
-  through snippets; edit the root files, and use absolute
+- Reference material lives in `docs/*.md`. `docs/changelog.md` and `docs/contributing.md`
+  include the root `CHANGELOG.md` and `CONTRIBUTING.md` through snippets; edit the root files,
+  and use absolute
   URLs for cross-links inside them so they work on GitHub, npm, and the site.
 - Tool descriptions in `src/contracts/operations.ts` must be self-sufficient. That text, plus
   `src/mcp/instructions.ts`, is what an agent actually reads at runtime.

@@ -542,7 +542,7 @@ sends a progress token receives `notifications/progress` as documents are read a
 applied; on the command line, `--progress` writes the same steps to stderr as JSON lines.
 
 The usual sequence is `plan_sync`, a look at the plan with the user, then `sync_directory` with
-the plan's `planToken`. The reference cleanup the roadmap was written from, four changed files
+the plan's `planToken`. The reference cleanup this tool was designed from, four changed files
 uploaded, twenty stale entities deleted, and nine identical figures left alone, is those two
 calls.
 

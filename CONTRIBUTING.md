@@ -8,8 +8,8 @@ manuscripts, and how to get a pull request merged.
 
 Use [GitHub Discussions](https://github.com/mhmdaskari/overleaf-web-mcp/discussions) for questions,
 ideas, and reports of how the tools worked for you, good or bad. Feedback from real review and
-writing sessions shapes the [roadmap](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md),
-so say what you were trying to do, not only what went wrong.
+writing sessions shapes what is built next, so say what you were trying to do, not only what went
+wrong.
 
 ## Report a bug
 
@@ -107,8 +107,8 @@ The rules that most often catch a first pull request:
    `fix:`, `docs:`, `ci:`, `chore:`) and plain wording.
 3. Run every command under **Set up**, and `npx tsx scripts/check-pack.ts` after a build if you changed what is published.
 4. Add a `CHANGELOG.md` entry for anything a user would notice, and update the documentation in
-   `docs/` and the README when behaviour changes. Edit `ROADMAP.md` and `CHANGELOG.md` at the
-   repository root; the documentation site includes them.
+   `docs/` and the README when behaviour changes. Edit `CHANGELOG.md` at the repository
+   root; the documentation site includes it.
 5. In the description, say what changed, why, and how you tested it. If you ran live tests, say
    so, and against which kind of Overleaf.
 

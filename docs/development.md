@@ -130,7 +130,7 @@ volume low and treat cleanup failures as test failures.
 
 The site is built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) from
 `docs/` and deployed to GitHub Pages by the `Docs` workflow on every push to `main` that touches
-the docs, `ROADMAP.md`, or `CHANGELOG.md`.
+the docs, `CHANGELOG.md`, or `CONTRIBUTING.md`.
 
 ```bash
 pip install mkdocs-material
@@ -138,8 +138,8 @@ mkdocs serve          # live preview at http://127.0.0.1:8000
 mkdocs build --strict # what CI runs; broken links fail the build
 ```
 
-`docs/roadmap.md` and `docs/changelog.md` include the root `ROADMAP.md` and `CHANGELOG.md`
-through snippets, so edit the root files. Use absolute URLs for cross-links inside them so they
+`docs/changelog.md` and `docs/contributing.md` include the root `CHANGELOG.md` and
+`CONTRIBUTING.md` through snippets, so edit the root files. Use absolute URLs for cross-links inside them so they
 work on GitHub, npm, and the site alike.
 
 ## Download badge
@@ -196,5 +196,5 @@ package, and ship in it.
 Git workflows, collaborator and sharing administration, account and billing settings, chat,
 background history watching, backward history pagination, version diffs and restoration, label
 mutation, and editing or deleting individual comment messages are outside the current release. Private API
-compatibility is version-specific and maintained on a best-effort basis. See the
-[roadmap](roadmap.md) for what is planned.
+compatibility is version-specific and maintained on a best-effort basis. Planned work is tracked
+in [GitHub issues](https://github.com/mhmdaskari/overleaf-web-mcp/issues).
