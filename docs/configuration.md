@@ -7,31 +7,31 @@ process, which `readConfig()` reads from `process.env`. Defaults suit `www.overl
 
 ## Reference
 
-| Variable | Default | Purpose |
-| --- | ---: | --- |
-| `OVERLEAF_BASE_URL` | `https://www.overleaf.com` | Target Overleaf origin. Use the same value for `login`, `serve`, and every other command. |
-| `OVERLEAF_COOKIE_JAR_FILE` | Platform configuration directory | Saved-session path override |
-| `OVERLEAF_BROWSER_PATH` | Auto-detected | Chrome-family executable used by `login` |
-| `OVERLEAF_BROWSER_PROFILE_DIR` | Platform configuration directory | Dedicated login profile |
-| `OVERLEAF_LOGIN_TIMEOUT_MS` | `300000` | Browser sign-in deadline, capped at 15 minutes |
-| `OVERLEAF_PROTOCOL_VERSIONS` | `2` | Comma-separated accepted collaboration protocol versions |
-| `OVERLEAF_MAX_DOC_LENGTH` | `2097152` | Fallback maximum UTF-16 document length |
-| `OVERLEAF_MAX_UPDATE_CHARS` | `7340032` | Conservative serialized OT update limit |
-| `OVERLEAF_SOCKET_CACHE_SIZE` | `2` | Maximum cached project sockets |
-| `OVERLEAF_SOCKET_IDLE_TTL_MS` | `90000` | Idle project-socket lifetime |
-| `OVERLEAF_REQUEST_TIMEOUT_MS` | `30000` | REST and collaboration-call timeout |
-| `OVERLEAF_APPLY_TIMEOUT_MS` | `30000` | OT acknowledgement and application timeout |
-| `OVERLEAF_RECOVERY_TIMEOUT_MS` | `30000` | Ambiguous-mutation observation window |
-| `OVERLEAF_COMPILE_TIMEOUT_MS` | `120000` | Default compile wait, capped at 15 minutes |
-| `OVERLEAF_READ_ATTEMPTS` | `3` | Attempts of a read after a transient failure, 1 (no retry) to 3; see [retries and pacing](#retries-and-pacing) |
-| `OVERLEAF_MIN_REQUEST_INTERVAL_MS` | `0` | Least time between the starts of two REST requests, at most 60000 |
-| `HTTPS_PROXY`, `https_proxy` | Unset | Proxy for an `https://` base URL; see [behind a proxy](#behind-a-proxy) |
-| `HTTP_PROXY`, `http_proxy` | Unset | Proxy for an `http://` base URL |
-| `NO_PROXY`, `no_proxy` | Unset | Hosts reached directly, bypassing the proxy |
-| `OVERLEAF_ALLOWED_PROJECTS` | Unset, every project | Comma-separated project ids the server may touch; see [access policy](#access-policy) |
-| `OVERLEAF_LOCAL_READ_ROOTS` | Unset, anywhere | Absolute folders local reads must stay inside, separated by `:` (`;` on Windows) |
-| `OVERLEAF_LOCAL_WRITE_ROOTS` | Unset, anywhere but the session | Absolute folders local writes must stay inside, separated the same way |
-| `OVERLEAF_ALLOWED_EFFECTS` | Unset, every effect | Comma-separated effects operations may have |
+| Variable | Default | Purpose | Since |
+| --- | ---: | --- | --- |
+| `OVERLEAF_BASE_URL` | `https://www.overleaf.com` | Target Overleaf origin. Use the same value for `login`, `serve`, and every other command. | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_COOKIE_JAR_FILE` | Platform configuration directory | Saved-session path override | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_BROWSER_PATH` | Auto-detected | Chrome-family executable used by `login` | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_BROWSER_PROFILE_DIR` | Platform configuration directory | Dedicated login profile | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_LOGIN_TIMEOUT_MS` | `300000` | Browser sign-in deadline, capped at 15 minutes | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_PROTOCOL_VERSIONS` | `2` | Comma-separated accepted collaboration protocol versions | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_MAX_DOC_LENGTH` | `2097152` | Fallback maximum UTF-16 document length | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_MAX_UPDATE_CHARS` | `7340032` | Conservative serialized OT update limit | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_SOCKET_CACHE_SIZE` | `2` | Maximum cached project sockets | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_SOCKET_IDLE_TTL_MS` | `90000` | Idle project-socket lifetime | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_REQUEST_TIMEOUT_MS` | `30000` | REST and collaboration-call timeout | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_APPLY_TIMEOUT_MS` | `30000` | OT acknowledgement and application timeout | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_RECOVERY_TIMEOUT_MS` | `30000` | Ambiguous-mutation observation window | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_COMPILE_TIMEOUT_MS` | `120000` | Default compile wait, capped at 15 minutes | <!-- md:version 0.1.0 --> |
+| `OVERLEAF_READ_ATTEMPTS` | `3` | Attempts of a read after a transient failure, 1 (no retry) to 3; see [retries and pacing](#retries-and-pacing) | <!-- md:version 1.0.0 --> |
+| `OVERLEAF_MIN_REQUEST_INTERVAL_MS` | `0` | Least time between the starts of two REST requests, at most 60000 | <!-- md:version 1.0.0 --> |
+| `HTTPS_PROXY`, `https_proxy` | Unset | Proxy for an `https://` base URL; see [behind a proxy](#behind-a-proxy) | <!-- md:version 0.3.1 --> |
+| `HTTP_PROXY`, `http_proxy` | Unset | Proxy for an `http://` base URL | <!-- md:version 0.3.1 --> |
+| `NO_PROXY`, `no_proxy` | Unset | Hosts reached directly, bypassing the proxy | <!-- md:version 0.3.1 --> |
+| `OVERLEAF_ALLOWED_PROJECTS` | Unset, every project | Comma-separated project ids the server may touch; see [access policy](#access-policy) | <!-- md:version 0.5.0 --> |
+| `OVERLEAF_LOCAL_READ_ROOTS` | Unset, anywhere | Absolute folders local reads must stay inside, separated by `:` (`;` on Windows) | <!-- md:version 0.5.0 --> |
+| `OVERLEAF_LOCAL_WRITE_ROOTS` | Unset, anywhere but the session | Absolute folders local writes must stay inside, separated the same way | <!-- md:version 0.5.0 --> |
+| `OVERLEAF_ALLOWED_EFFECTS` | Unset, every effect | Comma-separated effects operations may have | <!-- md:version 0.5.0 --> |
 
 An `ol-maxDocLength` value advertised by the Overleaf deployment takes precedence over the
 fallback. Content at or above the limit returns `DOC_TOO_LARGE`; an oversized serialized update
@@ -44,6 +44,8 @@ waits, not the account's server-side compile allowance.
 download, the whole transfer included, in place of `OVERLEAF_REQUEST_TIMEOUT_MS`.
 
 ## Retries and pacing
+
+<!-- md:version 1.0.0 -->
 
 Only reads are ever sent again. A read, a `GET` or the project list's `POST /api/project`, that
 failed on the network, was cut off, or answered HTTP 5xx, and a project join that failed for a
@@ -83,6 +85,8 @@ a protected temporary file followed by an atomic replace. If the session expires
 `npx overleaf-web-mcp login` again; to stop that happening, see the next section.
 
 ## Keeping the session alive
+
+<!-- md:version 0.3.0 -->
 
 Overleaf issues its session cookie with a five-day lifetime and re-issues it, with a fresh five
 days, on every response. The server merges each refreshed cookie into the jar, so a session used
@@ -157,6 +161,8 @@ re-read under that lock before it is written, so no process can overwrite anothe
 
 ## Behind a proxy
 
+<!-- md:version 0.3.1 -->
+
 When outbound traffic must go through an HTTP proxy, set the conventional proxy variables in the
 same `env` block as the others:
 
@@ -190,6 +196,8 @@ proxy support, so it works on Node 20 and needs no `NODE_USE_ENV_PROXY`.
 sign-in uses the proxy above, as `serve`, `keepalive`, and every operation command do.
 
 ## Access policy
+
+<!-- md:version 0.5.0 -->
 
 Four variables limit what the server may touch. Each one is unset by default, which allows
 everything of its kind, and the server checks every operation against all four before it sends

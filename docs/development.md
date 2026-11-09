@@ -136,7 +136,7 @@ volume low and treat cleanup failures as test failures.
 
 The site is built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) from
 `docs/` and deployed to GitHub Pages by the `Docs` workflow on every push to `main` that touches
-the docs, `CHANGELOG.md`, or `CONTRIBUTING.md`.
+the docs, the docs hooks in `overrides/`, `CHANGELOG.md`, or `CONTRIBUTING.md`.
 
 ```bash
 pip install mkdocs-material
@@ -147,6 +147,13 @@ mkdocs build --strict # what CI runs; broken links fail the build
 `docs/changelog.md` and `docs/contributing.md` include the root `CHANGELOG.md` and
 `CONTRIBUTING.md` through snippets, so edit the root files. Use absolute URLs for cross-links inside them so they
 work on GitHub, npm, and the site alike.
+
+Features carry a version tag, `<!-- md:version X.Y.Z -->`, following Material's own
+[version convention](https://squidfunk.github.io/mkdocs-material/conventions/#version). The hook
+`overrides/hooks/shortcodes.py` turns it into a badge that links to that release in the changelog,
+and fails the build for a version `CHANGELOG.md` has no heading for. A new tool, parameter,
+command, flag, export, variable, or error code gets one with the next version, and an entry in the
+[version history](versions.md).
 
 ## Download badge
 

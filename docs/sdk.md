@@ -46,6 +46,8 @@ collaborators, until it is closed.
 
 ## Methods
 
+<!-- md:version 0.7.0 -->
+
 The client has one method per tool, named in camelCase: `read_file` is `readFile`,
 `sync_directory` is `syncDirectory`, and `auth_status` is `authStatus()`. A tool whose parameters
 are all optional, such as `listProjects()`, can be called with no argument.
@@ -107,11 +109,11 @@ the tree before doing anything else, and never call the write again blindly.
 
 `OperationContext` is what an interface hands an operation besides its input:
 
-| Field | Meaning |
-| --- | --- |
-| `onProgress(progress, total, message)` | Called as `plan_sync`, `sync_directory`, `batch_upload`, and `delete_entities` advance. Messages hold counts only. Its failures are ignored. |
-| `signal` | An `AbortSignal`. Cancelling it stops waiting; it never aborts a write already submitted. No operation in this release observes it yet. |
-| `onDiagnostic({ tool, code })` | Called when an operation fails, with its error code, or relied on a deprecated default, with `DEPRECATED`. It never carries a message, path, or content. |
+| Field | Meaning | Since |
+| --- | --- | --- |
+| `onProgress(progress, total, message)` | Called as `plan_sync`, `sync_directory`, `batch_upload`, and `delete_entities` advance. Messages hold counts only. Its failures are ignored. | <!-- md:version 0.5.0 --> |
+| `signal` | An `AbortSignal`. Cancelling it stops waiting; it never aborts a write already submitted. No operation in this release observes it yet. | <!-- md:version 0.5.0 --> |
+| `onDiagnostic({ tool, code })` | Called when an operation fails, with its error code, or relied on a deprecated default, with `DEPRECATED`. It never carries a message, path, or content. | <!-- md:version 0.5.0 --> |
 
 ## Stable surface
 
@@ -121,34 +123,34 @@ working, and every change is listed in the [changelog](changelog.md). `AppConfig
 optional fields in 1.0.0, `readAttempts` and `minRequestIntervalMs`, which `readConfig` fills in;
 a configuration built by hand without them gets the same defaults.
 
-| Export | What it is |
-| --- | --- |
-| `createOverleafClient` | `createOverleafClient(options?)` opens the session and returns an `OverleafClient`. `options.config` defaults to `readConfig()`. |
-| `OverleafClient` | The client type: one method per tool, plus `close()`. |
-| `OverleafClientOptions` | `createOverleafClient`'s options. Only `config` is public. |
-| `OperationMethod` | The type of one client method. |
-| `CamelCase` | The method name for a tool name, as a type: `CamelCase<'read_file'>` is `'readFile'`. |
-| `createOverleafService` | `createOverleafService(runtime)` returns one function per tool under its snake_case name, taking already-parsed input. The client is built on it. |
-| `OverleafService` | The type `createOverleafService` returns. |
-| `OverleafRuntime` | The session and engine. Only `OverleafRuntime.create(config)`, which opens the session, and `runtime.close()` are stable. |
-| `readConfig` | `readConfig(env?)` reads the configuration from `process.env`, or the object given. |
-| `AppConfig` | The configuration `readConfig` returns. |
-| `McpError` | The error every method rejects with. |
-| `McpErrorCode`, `ErrorCode` | One of `ERROR_CODES`. |
-| `ERROR_CODES` | Every error code, through every interface. |
-| `OPERATIONS` | The contract of every tool: description, input and output schemas, annotations, and effects. |
-| `OPERATION_NAMES` | The tool names, in registration order. |
-| `operationContract` | `operationContract(name)` returns one entry of `OPERATIONS`. |
-| `OperationName` | One of `OPERATION_NAMES`. |
-| `OperationInput` | `OperationInput<'tool_name'>`, what a tool accepts; defaulted fields may be left out. |
-| `OperationOutput` | `OperationOutput<'tool_name'>`, what a tool resolves with. |
-| `OperationContext` | The optional second argument of every method. |
-| `ProgressReporter` | The type of `onProgress`. |
-| `OperationDiagnostic` | What `onDiagnostic` receives. |
-| `OperationContract`, `OperationAnnotations` | The shape of one `OPERATIONS` entry and its MCP annotations. |
-| `EFFECTS`, `READ_EFFECTS`, `Effect` | The effects an operation can have, as the [access policy](configuration.md#access-policy) names them. |
-| `WriteMode` | `"untracked"` or `"tracked"`. |
-| `SERVER_VERSION` | The package version. |
+| Export | What it is | Since |
+| --- | --- | --- |
+| `createOverleafClient` | `createOverleafClient(options?)` opens the session and returns an `OverleafClient`. `options.config` defaults to `readConfig()`. | <!-- md:version 0.7.0 --> |
+| `OverleafClient` | The client type: one method per tool, plus `close()`. | <!-- md:version 0.7.0 --> |
+| `OverleafClientOptions` | `createOverleafClient`'s options. Only `config` is public. | <!-- md:version 0.7.0 --> |
+| `OperationMethod` | The type of one client method. | <!-- md:version 0.7.0 --> |
+| `CamelCase` | The method name for a tool name, as a type: `CamelCase<'read_file'>` is `'readFile'`. | <!-- md:version 0.7.0 --> |
+| `createOverleafService` | `createOverleafService(runtime)` returns one function per tool under its snake_case name, taking already-parsed input. The client is built on it. | <!-- md:version 0.5.0 --> |
+| `OverleafService` | The type `createOverleafService` returns. | <!-- md:version 0.5.0 --> |
+| `OverleafRuntime` | The session and engine. Only `OverleafRuntime.create(config)`, which opens the session, and `runtime.close()` are stable. | <!-- md:version 0.5.0 --> |
+| `readConfig` | `readConfig(env?)` reads the configuration from `process.env`, or the object given. | <!-- md:version 0.5.0 --> |
+| `AppConfig` | The configuration `readConfig` returns. | <!-- md:version 0.5.0 --> |
+| `McpError` | The error every method rejects with. | <!-- md:version 0.5.0 --> |
+| `McpErrorCode`, `ErrorCode` | One of `ERROR_CODES`. | <!-- md:version 0.5.0 --> |
+| `ERROR_CODES` | Every error code, through every interface. | <!-- md:version 0.5.0 --> |
+| `OPERATIONS` | The contract of every tool: description, input and output schemas, annotations, and effects. | <!-- md:version 0.5.0 --> |
+| `OPERATION_NAMES` | The tool names, in registration order. | <!-- md:version 0.5.0 --> |
+| `operationContract` | `operationContract(name)` returns one entry of `OPERATIONS`. | <!-- md:version 0.5.0 --> |
+| `OperationName` | One of `OPERATION_NAMES`. | <!-- md:version 0.5.0 --> |
+| `OperationInput` | `OperationInput<'tool_name'>`, what a tool accepts; defaulted fields may be left out. | <!-- md:version 0.5.0 --> |
+| `OperationOutput` | `OperationOutput<'tool_name'>`, what a tool resolves with. | <!-- md:version 0.5.0 --> |
+| `OperationContext` | The optional second argument of every method. | <!-- md:version 0.5.0 --> |
+| `ProgressReporter` | The type of `onProgress`. | <!-- md:version 0.5.0 --> |
+| `OperationDiagnostic` | What `onDiagnostic` receives. | <!-- md:version 0.5.0 --> |
+| `OperationContract`, `OperationAnnotations` | The shape of one `OPERATIONS` entry and its MCP annotations. | <!-- md:version 0.5.0 --> |
+| `EFFECTS`, `READ_EFFECTS`, `Effect` | The effects an operation can have, as the [access policy](configuration.md#access-policy) names them. | <!-- md:version 0.5.0 --> |
+| `WriteMode` | `"untracked"` or `"tracked"`. | <!-- md:version 0.5.0 --> |
+| `SERVER_VERSION` | The package version. | <!-- md:version 0.5.0 --> |
 
 Everything else the module exports is internal and can change in any release: the other fields
 and methods of `OverleafRuntime` (`http`, `documents`, `connections`, `policy`, and the domain
@@ -156,6 +158,8 @@ APIs), `RuntimeDependencies` with its `fetcher`, `connectionFactory`, and `sleep
 of `createOverleafClient`, and the `OverleafServiceRuntime` and `OperationHandler` types.
 
 ## Using the service directly
+
+<!-- md:version 0.5.0 -->
 
 `createOverleafService` is the layer the MCP server, the command line, and the client share. It
 expects input already parsed against the tool's schema, as the MCP SDK delivers it: it neither
