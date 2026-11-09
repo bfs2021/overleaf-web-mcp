@@ -20,10 +20,10 @@ export interface AppConfig {
   applyTimeoutMs: number
   recoveryTimeoutMs: number
   compileTimeoutMs: number
-  /** Attempts of a read after a transient failure, 1 to 3; writes are never retried. */
-  readAttempts: number
-  /** The least time between the starts of two REST requests; 0 paces nothing. */
-  minRequestIntervalMs: number
+  /** Attempts of a read after a transient failure, 1 to 3, 3 when absent; writes are never retried. */
+  readAttempts?: number
+  /** The least time between the starts of two REST requests; absent or 0 paces nothing. */
+  minRequestIntervalMs?: number
   supportedProtocolVersions: number[]
   /** Proxy for every connection to `baseUrl`; absent to connect directly. */
   proxyUrl?: string

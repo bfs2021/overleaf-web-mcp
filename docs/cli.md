@@ -198,9 +198,9 @@ unknown command. The exit codes below are for operation commands only.
 | 2 | Fix the call: a usage error, or an argument, confirmation, or local path was refused. Nothing was changed. | usage errors, `INVALID_ARGUMENT`, `CONFIRMATION_MISMATCH`, `PATH_OUTSIDE_ROOT` |
 | 3 | Not allowed or not available; do not retry. `AUTH_EXPIRED` means run `overleaf-web-mcp login`. | `AUTH_EXPIRED`, `PERMISSION_DENIED`, `POLICY_DENIED`, `REVIEW_UNSUPPORTED` |
 | 4 | Read or plan again, then decide: the document or project changed, a write is known not to have applied, part of it applied, or a tracked write applied untracked. | `REVISION_CONFLICT`, `REMOTE_DRIFT`; `TIMEOUT` with `details.outcome: "not_applied"` from an operation that is not read-only; `PROTOCOL_UNSUPPORTED` with `details.kind: "applied_untracked"`; any error with `details.created: true` or a non-empty `details.applied` from one |
-| 5 | Outcome unknown: a write may have applied. Read before acting; never re-run it blindly. | `OUTCOME_UNKNOWN`; `TIMEOUT` from an operation that is not read-only, unless `details.outcome` is `not_applied` |
+| 5 | Outcome unknown: a write may have applied. Read before acting; never re-run it blindly. | `OUTCOME_UNKNOWN`; `TIMEOUT` from an operation that is not read-only, unless `details.outcome` is `not_applied`; `TRANSIENT_FAILURE` from an operation that is not read-only, since its failed read may have followed the write |
 | 6 | Partial: some steps completed. The result is on stdout with `status: "partial"`. | none: a `batch_upload`, `sync_directory`, or `delete_entities` result with `status: "partial"`, or `compile run --download` whose download failed |
-| 7 | Safe to retry later: nothing was changed. | `RATE_LIMITED`, `COMPILE_RATE_LIMITED`, `COMPILE_UNAVAILABLE`, `TRANSIENT_FAILURE`; `TIMEOUT` from a read-only operation |
+| 7 | Safe to retry later: nothing was changed. | `RATE_LIMITED`, `COMPILE_RATE_LIMITED`, `COMPILE_UNAVAILABLE`; `TIMEOUT` and `TRANSIENT_FAILURE` from a read-only operation |
 
 Four rules reach beyond the codes in the table, and one rule overrides everything:
 

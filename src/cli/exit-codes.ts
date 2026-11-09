@@ -31,7 +31,7 @@ export const EXIT_CODES = [
   {
     exitCode: 5,
     meaning: 'Outcome unknown: a write may have applied. Read before acting; never re-run it blindly.',
-    errorCodes: ['OUTCOME_UNKNOWN', 'TIMEOUT'],
+    errorCodes: ['OUTCOME_UNKNOWN', 'TIMEOUT', 'TRANSIENT_FAILURE'],
   },
   {
     exitCode: 6,
@@ -90,6 +90,9 @@ export function exitCodeForError(error: McpError, operation?: OperationName): nu
     if (readOnly) return 7
     return outcome === 'not_applied' ? 4 : 5
   }
+  // The read that failed changed nothing, but an operation that writes may have read after its
+  // write, as to read a result back, so only a read-only one is promised to have changed nothing.
+  if (error.code === 'TRANSIENT_FAILURE') return readOnly ? 7 : 5
   // A write observed not to have applied, as after a lost socket, is as safe as a stale revision.
   if (!readOnly && operation !== undefined && outcome === 'not_applied') return 4
   if (RETRY_LATER.has(error.code)) return 7

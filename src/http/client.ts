@@ -26,6 +26,8 @@ export interface RequestOptions {
   timeoutMs?: number
   headers?: HeadersInit
   signal?: AbortSignal
+  /** A POST Overleaf answers without changing anything, such as the project list: retried like a GET. */
+  read?: boolean
 }
 
 /**
@@ -101,6 +103,15 @@ function responseSetCookies(headers: Headers): string[] {
   return value ? [value] : []
 }
 
+/**
+ * Releases an answer that will not be read. Not awaited: a cancel can wait on a stream another
+ * reader shares, and nothing here depends on it finishing.
+ */
+function discardBody(response: Response): void {
+  if (response.bodyUsed || response.body === null) return
+  response.body.cancel().catch(() => undefined)
+}
+
 export class OverleafHttpClient {
   readonly baseUrl: string
   readonly jar: CookieJar
@@ -126,14 +137,51 @@ export class OverleafHttpClient {
   }
 
   /**
-   * Sends one request. A GET or HEAD that failed on the network or with HTTP 5xx is sent again
-   * with backoff, up to `readAttempts` in all, and then fails with `TRANSIENT_FAILURE`. Nothing
-   * else is ever sent twice: not a request that changes something, and not a read that timed out,
-   * was rate-limited, or was refused.
+   * Sends one request and returns its response unread. A read, a GET or HEAD or a POST marked
+   * `read`, that failed on the network or with HTTP 5xx is sent again with backoff, up to
+   * `readAttempts` in all, and then fails with `TRANSIENT_FAILURE`. Nothing else is ever sent
+   * twice: not a request that changes something, and not a read that timed out, was rate-limited,
+   * or was refused.
    */
   async request(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<Response> {
-    if (method !== 'GET' && method !== 'HEAD') return await this.#send(method, path, body, options)
-    return await retryRead(async () => await this.#send(method, path, body, options), {
+    return await this.#exchange(method, path, body, options, async response => await Promise.resolve(response))
+  }
+
+  /**
+   * Sends a request and reads its answer with `consume`, both inside the same attempt, so a read
+   * whose body was cut off is tried again like one that failed before the headers.
+   */
+  async #exchange<T>(
+    method: string,
+    path: string,
+    body: unknown,
+    options: RequestOptions,
+    consume: (response: Response) => Promise<T>
+  ): Promise<T> {
+    const isRead = method === 'GET' || method === 'HEAD' || options.read === true
+    const attempt = async (): Promise<T> => {
+      const response = await this.#send(method, path, body, options)
+      try {
+        return await consume(response)
+      } catch (error) {
+        if (error instanceof McpError) throw error
+        const name = (error as { name?: unknown } | null)?.name
+        if (name === 'TimeoutError' || name === 'AbortError') {
+          throw new McpError('TIMEOUT', `Overleaf request timed out: ${method} ${path}`, {
+            retryable: true,
+            cause: error,
+          })
+        }
+        // The answer was cut off. Only a read is marked retryable: a write may have applied.
+        throw new McpError('REMOTE_ERROR', `Overleaf's answer was cut off: ${method} ${path}`, {
+          retryable: isRead,
+          details: { kind: 'network' },
+          cause: error,
+        })
+      }
+    }
+    if (!isRead) return await attempt()
+    return await retryRead(attempt, {
       attempts: this.#readAttempts,
       sleep: this.#sleep,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -210,6 +258,29 @@ export class OverleafHttpClient {
     for (const value of setCookies) await this.jar.setCookie(value, url)
     await this.#persistSetCookies?.(url, setCookies)
 
+    try {
+      this.#check(response, method, path, base, target, mutating)
+    } catch (error) {
+      // An error answer is not read further; releasing it frees the connection for a retry.
+      discardBody(response)
+      throw error
+    }
+    if (!response.ok) {
+      const overleafError = await safeErrorCode(response)
+      discardBody(response)
+      throw new McpError('REMOTE_ERROR', `Overleaf returned HTTP ${response.status}.`, {
+        details: {
+          status: response.status,
+          path,
+          ...(overleafError === undefined ? {} : { overleafError }),
+        },
+      })
+    }
+    return response
+  }
+
+  /** Throws the typed error for a response that signals a lost session, a redirect, or a refusal. */
+  #check(response: Response, method: string, path: string, base: URL, target: URL, mutating: boolean): void {
     const finalPath = response.url ? new URL(response.url).pathname : ''
     const redirect = mutating && response.status >= 300 && response.status < 400
     const location = redirect ? redirectTarget(response, target) : undefined
@@ -249,37 +320,46 @@ export class OverleafHttpClient {
         },
       })
     }
-    if (!response.ok) {
-      const overleafError = await safeErrorCode(response)
-      throw new McpError('REMOTE_ERROR', `Overleaf returned HTTP ${response.status}.`, {
-        details: {
-          status: response.status,
-          path,
-          ...(overleafError === undefined ? {} : { overleafError }),
-        },
-      })
-    }
-    return response
   }
 
-  async getJson<T = unknown>(path: string, options?: RequestOptions): Promise<T> {
-    const response = await this.request('GET', path, undefined, options)
-    return (await parseJsonBody(response, path)) as T
+  async getJson<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
+    return (await this.#exchange(
+      'GET',
+      path,
+      undefined,
+      options,
+      async response => await parseJsonBody(response, path)
+    )) as T
   }
 
-  async postJson<T = unknown>(path: string, body: unknown = {}, options?: RequestOptions): Promise<T> {
-    const response = await this.request('POST', path, body, options)
-    return (await parseJsonBody(response, path, {})) as T
+  async postJson<T = unknown>(path: string, body: unknown = {}, options: RequestOptions = {}): Promise<T> {
+    return (await this.#exchange(
+      'POST',
+      path,
+      body,
+      options,
+      async response => await parseJsonBody(response, path, {})
+    )) as T
   }
 
-  async deleteJson<T = unknown>(path: string, options?: RequestOptions): Promise<T> {
-    const response = await this.request('DELETE', path, undefined, options)
-    return (await parseJsonBody(response, path, {})) as T
+  async deleteJson<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
+    return (await this.#exchange(
+      'DELETE',
+      path,
+      undefined,
+      options,
+      async response => await parseJsonBody(response, path, {})
+    )) as T
   }
 
-  async getBytes(path: string, options?: RequestOptions): Promise<Uint8Array> {
-    const response = await this.request('GET', path, undefined, options)
-    return new Uint8Array(await response.arrayBuffer())
+  async getBytes(path: string, options: RequestOptions = {}): Promise<Uint8Array> {
+    return await this.#exchange(
+      'GET',
+      path,
+      undefined,
+      options,
+      async response => new Uint8Array(await response.arrayBuffer())
+    )
   }
 
   /**
@@ -296,8 +376,13 @@ export class OverleafHttpClient {
     return { body, ...(contentType === undefined ? {} : { contentType }) }
   }
 
-  async postForm<T = unknown>(path: string, form: FormData, options?: RequestOptions): Promise<T> {
-    const response = await this.request('POST', path, form, options)
-    return (await parseJsonBody(response, path, {})) as T
+  async postForm<T = unknown>(path: string, form: FormData, options: RequestOptions = {}): Promise<T> {
+    return (await this.#exchange(
+      'POST',
+      path,
+      form,
+      options,
+      async response => await parseJsonBody(response, path, {})
+    )) as T
   }
 }

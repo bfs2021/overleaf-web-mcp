@@ -1,3 +1,5 @@
+import { AUTH_LOGIN_INSTRUCTION, McpError } from '../core/errors.js'
+
 function decodeHtml(value: string): string {
   return value
     .replace(/&quot;/gu, '"')
@@ -41,4 +43,21 @@ export function parseBootstrapMeta(html: string): BootstrapMeta {
     output.maxDocLength = maxDocLength
   }
   return output
+}
+
+/**
+ * The CSRF token every request that changes something needs, or the reason the page has none. A
+ * signed-in page (one naming `ol-user_id`) without a token is a page this release does not read,
+ * not a lost session, since signing in again would not change it.
+ */
+export function requireCsrfToken(meta: BootstrapMeta): string {
+  if (meta.csrfToken !== undefined && meta.csrfToken !== '') return meta.csrfToken
+  if (meta.userId !== undefined) {
+    throw new McpError(
+      'PROTOCOL_UNSUPPORTED',
+      'Overleaf served a signed-in project page without the CSRF token this release reads.',
+      { details: { kind: 'response_shape', endpoint: 'GET /project' } }
+    )
+  }
+  throw new McpError('AUTH_EXPIRED', `Overleaf did not expose an authenticated CSRF token. ${AUTH_LOGIN_INSTRUCTION}`)
 }

@@ -148,6 +148,7 @@ describe('allowed projects through the real runtime', () => {
       await expect(runtime.connections.withConnection('b', async () => undefined)).rejects.toMatchObject({
         code: 'POLICY_DENIED',
       })
+      await expect(runtime.reviewSupport('b')).rejects.toMatchObject({ code: 'POLICY_DENIED' })
       expect(fetches).toEqual([])
       expect(connectionFactory).not.toHaveBeenCalled()
     } finally {
@@ -220,7 +221,7 @@ describe('allowed effects through the real runtime', () => {
 
 describe('effects a write needs for its own reads', () => {
   test('are refused before the write, never after it', async () => {
-    const { runtime, fetches, socketCalls } = await createTestRuntime({
+    const { runtime, fetches, socketCalls, connectionFactory } = await createTestRuntime({
       env: { OVERLEAF_ALLOWED_EFFECTS: 'project-lifecycle,overleaf-write' },
       fetcher: async () => json({ project_id: 'n' }),
     })
@@ -246,8 +247,14 @@ describe('effects a write needs for its own reads', () => {
           status: 'resolved',
         })
       ).rejects.toMatchObject({ code: 'POLICY_DENIED' })
+      // Finding out whether tracked changes can be decided is a read, so it is refused too.
+      await expect(runtime.reviewSupport('p')).rejects.toMatchObject({
+        code: 'POLICY_DENIED',
+        details: { effect: 'overleaf-read' },
+      })
       expect(fetches).toEqual([])
       expect(socketCalls).toEqual([])
+      expect(connectionFactory).not.toHaveBeenCalled()
     } finally {
       await runtime.close()
     }

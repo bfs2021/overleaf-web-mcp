@@ -85,6 +85,106 @@ describe('project socket bootstrap', () => {
     ).rejects.toMatchObject({ code: 'REMOTE_ERROR', retryable: true, details: { reason: 'disconnected' } })
   })
 
+  function join(
+    webSocketFactory: () => FakeSocket,
+    fetcher = vi.fn(async () => new Response('SOCKET_SESSION:60:60:websocket'))
+  ) {
+    return openProjectConnection({
+      baseUrl: 'https://overleaf.test',
+      projectId: 'project',
+      jar: new CookieJar(),
+      supportedProtocolVersions: [2],
+      fetcher,
+      webSocketFactory,
+      timeoutMs: 1_000,
+    })
+  }
+
+  test('reports a transport error before the join answered as retryable, and closes the socket', async () => {
+    const socket = new FakeSocket()
+    const failure = join(() => {
+      setTimeout(() => {
+        // ws emits 'error' and then 'close' when the upgrade is refused, for example with 502.
+        socket.emit('error', new Error('Unexpected server response: 502'))
+        socket.close()
+      }, 0)
+      return socket
+    })
+    await expect(failure).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      retryable: true,
+      details: { reason: 'disconnected' },
+    })
+    expect(socket.readyState).toBe(3)
+  })
+
+  test('reports a network failure of the handshake as retryable REMOTE_ERROR, not TIMEOUT', async () => {
+    const fetcher = vi.fn(async () => {
+      throw new TypeError('fetch failed')
+    })
+    await expect(join(() => new FakeSocket(), fetcher)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      retryable: true,
+      details: { kind: 'network' },
+    })
+  })
+
+  test('reports a handshake that timed out as TIMEOUT', async () => {
+    const fetcher = vi.fn(
+      async (_url: string, init?: RequestInit) =>
+        await new Promise<Response>((_resolve, reject) =>
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+        )
+    )
+    await expect(
+      openProjectConnection({
+        baseUrl: 'https://overleaf.test',
+        projectId: 'project',
+        jar: new CookieJar(),
+        supportedProtocolVersions: [2],
+        fetcher,
+        webSocketFactory: () => new FakeSocket(),
+        timeoutMs: 5,
+      })
+    ).rejects.toMatchObject({ code: 'TIMEOUT' })
+  })
+
+  test.each([[{ publicId: 'P', permissionsLevel: 'owner', protocolVersion: 2 }], [null]])(
+    'closes the socket and reports PROTOCOL_UNSUPPORTED for a joinProjectResponse of %j',
+    async payload => {
+      const socket = new FakeSocket()
+      const failure = join(() => {
+        setTimeout(() => {
+          socket.readyState = 1
+          socket.emit('message', `5:::${JSON.stringify({ name: 'joinProjectResponse', args: [payload] })}`)
+        }, 0)
+        return socket
+      })
+      await expect(failure).rejects.toMatchObject({
+        code: 'PROTOCOL_UNSUPPORTED',
+        details: { kind: 'response_shape', event: 'joinProject' },
+      })
+      expect(socket.close).toHaveBeenCalled()
+    }
+  )
+
+  test('decodes a Socket.IO error packet advising a reconnect as a retryable failure', async () => {
+    const socket = new FakeSocket()
+    const failure = join(() => {
+      setTimeout(() => {
+        socket.readyState = 1
+        // 'client not handshaken' (1) with the advice 'reconnect' (0).
+        socket.emit('message', '7:::1+0')
+      }, 0)
+      return socket
+    })
+    await expect(failure).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      retryable: true,
+      details: { reason: 'not_handshaken' },
+    })
+  })
+
   test.each([
     // The payload real-time sends when web's join-project limiter refuses the join, captured live.
     [
@@ -97,6 +197,7 @@ describe('project socket bootstrap', () => {
     // The payloads real-time's Router and WebApiManager emit, read in overleaf/overleaf.
     [{ message: 'retry' }, 'TRANSIENT_FAILURE', true, 'retry'],
     [{ message: 'not authorized' }, 'PERMISSION_DENIED', false, 'not_authorized'],
+    [{ message: 'unauthorized' }, 'PERMISSION_DENIED', false, 'unauthorized'],
     [{ message: 'project not found', code: 'ProjectNotFound' }, 'NOT_FOUND', false, 'project_not_found'],
     [{ message: 'error' }, 'REMOTE_ERROR', true, 'connection_error'],
     [{ message: 'Something went wrong in real-time service' }, 'REMOTE_ERROR', true, 'realtime_error'],

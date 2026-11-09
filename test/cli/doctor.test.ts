@@ -25,6 +25,10 @@ interface FakeOptions {
   page?: string
   protocolVersion?: number
   rootDoc?: boolean
+  /** The Socket.IO handshake's answer. */
+  handshake?: () => Response
+  /** Replaces the joinProjectResponse payload. */
+  join?: unknown
 }
 
 function fakeOverleaf(options: FakeOptions = {}) {
@@ -46,7 +50,7 @@ function fakeOverleaf(options: FakeOptions = {}) {
         }
       )
     }
-    if (url.pathname === '/socket.io/1/') return new Response('SESSION:60:60:websocket')
+    if (url.pathname === '/socket.io/1/') return options.handshake?.() ?? new Response('SESSION:60:60:websocket')
     return new Response('', { status: 404 })
   }
   const webSocketFactory = () => {
@@ -59,18 +63,26 @@ function fakeOverleaf(options: FakeOptions = {}) {
       socket.readyState = 1
       socket.emit('open')
       socket.emitEvent('joinProjectResponse', [
-        {
-          publicId: 'P.client',
-          project: {
-            _id: PROJECT,
-            ...(options.rootDoc === false ? {} : { rootDoc_id: 'doc' }),
-            rootFolder: [
-              { _id: 'root', name: 'rootFolder', docs: [{ _id: 'doc', name: 'main.tex' }], fileRefs: [], folders: [] },
-            ],
-          },
-          permissionsLevel: 'owner',
-          protocolVersion: options.protocolVersion ?? 2,
-        },
+        'join' in options
+          ? options.join
+          : {
+              publicId: 'P.client',
+              project: {
+                _id: PROJECT,
+                ...(options.rootDoc === false ? {} : { rootDoc_id: 'doc' }),
+                rootFolder: [
+                  {
+                    _id: 'root',
+                    name: 'rootFolder',
+                    docs: [{ _id: 'doc', name: 'main.tex' }],
+                    fileRefs: [],
+                    folders: [],
+                  },
+                ],
+              },
+              permissionsLevel: 'owner',
+              protocolVersion: options.protocolVersion ?? 2,
+            },
       ])
     })
     return socket
@@ -108,6 +120,7 @@ describe('doctor', () => {
     expect(run.report?.checks.map(check => check.id)).toEqual([...DOCTOR_CHECK_IDS])
     expect(new Set(Object.values(statuses(run.report)))).toEqual(new Set(['ok']))
     expect(fake.sockets[0]?.events).toEqual(['joinDoc', 'leaveDoc'])
+    expect(fake.sockets[0]?.readyState).toBe(3)
     expect(fake.sockets.flatMap(socket => socket.events)).not.toContain('applyOtUpdate')
     expect(fake.requests.every(request => request.startsWith('GET ') || request === 'POST /api/project')).toBe(true)
     // Ids, statuses, and codes only: no project id, name, or path.
@@ -132,6 +145,63 @@ describe('doctor', () => {
       'joinDoc.rootDocument': 'skipped',
     })
     expect(fake.sockets.flatMap(socket => socket.events)).toEqual([])
+    expect(fake.sockets[0]?.readyState).toBe(3)
+  })
+
+  test.each([
+    ['a join without its project', { join: { publicId: 'P', permissionsLevel: 'owner', protocolVersion: 2 } }],
+    ['an empty join', { join: null }],
+  ])('reports %s as joinProject unsupported and closes the socket', async (_name, options) => {
+    const fake = fakeOverleaf(options)
+    const run = await doctor([PROJECT], await sessionEnv(), fake)
+
+    expect(run.exitCode).toBe(1)
+    expect(run.report?.checks).toContainEqual({
+      id: 'joinProject',
+      status: 'unsupported',
+      code: 'PROTOCOL_UNSUPPORTED',
+    })
+    expect(statuses(run.report)['socket.handshake']).toBe('ok')
+    expect(fake.sockets[0]?.readyState).toBe(3)
+  })
+
+  test.each([
+    [() => new Response('SESSION:60:60:xhr-polling'), 'unsupported', 'PROTOCOL_UNSUPPORTED'],
+    [() => new Response('not a handshake'), 'unsupported', 'PROTOCOL_UNSUPPORTED'],
+    [() => new Response('', { status: 502 }), 'failed', 'REMOTE_ERROR'],
+  ])(
+    'reports a handshake that answered %# as socket.handshake %s, opening no socket',
+    async (handshake, status, code) => {
+      const fake = fakeOverleaf({ handshake })
+      const run = await doctor([PROJECT], await sessionEnv(), fake)
+
+      expect(run.exitCode).toBe(1)
+      expect(run.report?.checks).toContainEqual({ id: 'socket.handshake', status, code })
+      expect(statuses(run.report).joinProject).toBe('skipped')
+      expect(fake.sockets).toHaveLength(0)
+    }
+  )
+
+  test.each([
+    ['<meta name="ol-csrfToken" content=""><meta name="ol-user_id" content="user">', 'unsupported', 'ok'],
+    ['<meta name="ol-csrfToken" content="csrf">', 'ok', 'unsupported'],
+  ])('judges the bootstrap page %j as every command does', async (page, csrfStatus, userStatus) => {
+    const fake = fakeOverleaf({ page })
+    const run = await doctor([], await sessionEnv(), fake)
+
+    expect(run.exitCode).toBe(1)
+    expect(statuses(run.report)).toMatchObject({ 'bootstrap.csrfToken': csrfStatus, 'bootstrap.userId': userStatus })
+  })
+
+  test('refuses an environment variable it cannot read as a usage error, with no report', async () => {
+    const fake = fakeOverleaf()
+    const run = await doctor([], { ...(await sessionEnv()), OVERLEAF_REQUEST_TIMEOUT_MS: 'soon' }, fake)
+
+    expect(run.exitCode).toBe(2)
+    expect(run.stdout).toBe('')
+    expect(run.stderr.trim().split('\n')).toHaveLength(1)
+    expect(JSON.parse(run.stderr)).toMatchObject({ code: 'INVALID_ARGUMENT' })
+    expect(fake.requests).toEqual([])
   })
 
   test('skips every socket check without a projectId', async () => {

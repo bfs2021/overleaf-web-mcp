@@ -1,7 +1,7 @@
 import type { AppConfig } from '../config.js'
 import { asMcpError } from '../core/errors.js'
 import { AccessPolicy } from '../core/policy.js'
-import { parseBootstrapMeta } from '../http/bootstrap.js'
+import { parseBootstrapMeta, requireCsrfToken } from '../http/bootstrap.js'
 import { OverleafHttpClient } from '../http/client.js'
 import { CookieStore } from '../http/cookies.js'
 import { createProxyRoute } from '../http/proxy.js'
@@ -117,6 +117,7 @@ export async function runDoctor(
       baseUrl: config.baseUrl,
       jar: cookieStore.jar,
       defaultTimeoutMs: config.requestTimeoutMs,
+      minRequestIntervalMs: config.minRequestIntervalMs ?? 0,
       csrfToken: () => csrf.token,
       ...(fetcher === undefined ? {} : { fetcher }),
     })
@@ -126,24 +127,24 @@ export async function runDoctor(
       const page = await http.request('GET', '/project')
       const bootstrap = parseBootstrapMeta(await page.text())
       checks.push({ id: 'bootstrap.page', status: 'ok' })
+      // The same check every other command makes before it starts.
+      let token: string | undefined
+      try {
+        token = requireCsrfToken(bootstrap)
+        checks.push({ id: 'bootstrap.csrfToken', status: 'ok' })
+      } catch (error) {
+        checks.push(failure('bootstrap.csrfToken', error))
+      }
       checks.push(
-        bootstrap.csrfToken === undefined
-          ? {
-              id: 'bootstrap.csrfToken',
-              // A signed-in page without the token is a page shape this release does not read.
-              ...(bootstrap.userId === undefined
-                ? { status: 'failed' as const, code: 'AUTH_EXPIRED' }
-                : { status: 'unsupported' as const, code: 'PROTOCOL_UNSUPPORTED' }),
-            }
-          : { id: 'bootstrap.csrfToken', status: 'ok' }
+        bootstrap.userId !== undefined
+          ? { id: 'bootstrap.userId', status: 'ok' }
+          : token === undefined
+            ? { id: 'bootstrap.userId', status: 'failed', code: 'AUTH_EXPIRED' }
+            : // A page with a token and no user is a shape change; tracked writes refuse it.
+              { id: 'bootstrap.userId', status: 'unsupported', code: 'PROTOCOL_UNSUPPORTED' }
       )
-      checks.push(
-        bootstrap.userId === undefined
-          ? { id: 'bootstrap.userId', status: 'failed', code: 'AUTH_EXPIRED' }
-          : { id: 'bootstrap.userId', status: 'ok' }
-      )
-      if (bootstrap.csrfToken === undefined) return skipRest(checks)
-      csrf.token = bootstrap.csrfToken
+      if (token === undefined) return skipRest(checks)
+      csrf.token = token
       userId = bootstrap.userId
     } catch (error) {
       checks.push(failure('bootstrap.page', error))
@@ -166,13 +167,8 @@ export async function runDoctor(
       return skipRest(checks)
     }
 
+    // Set only once the handshake answered with a session that offers the websocket transport.
     let handshakeAnswered = false
-    const baseFetcher: Fetcher = fetcher ?? (async (input, init) => await fetch(input, init))
-    const watchedFetcher: Fetcher = async (input, init) => {
-      const response = await baseFetcher(input, init)
-      handshakeAnswered = response.ok
-      return response
-    }
     let connection: ProjectConnection
     try {
       connection = await openProjectConnection({
@@ -181,7 +177,10 @@ export async function runDoctor(
         jar: cookieStore.jar,
         supportedProtocolVersions: config.supportedProtocolVersions,
         timeoutMs: config.requestTimeoutMs,
-        fetcher: watchedFetcher,
+        onHandshake: () => {
+          handshakeAnswered = true
+        },
+        ...(fetcher === undefined ? {} : { fetcher }),
         ...(userId === undefined ? {} : { currentUserId: userId }),
         ...(dependencies.webSocketFactory === undefined ? {} : { webSocketFactory: dependencies.webSocketFactory }),
         ...(proxy === undefined ? {} : { webSocketAgent: proxy.webSocketAgent }),

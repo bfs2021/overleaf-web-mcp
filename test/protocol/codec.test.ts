@@ -82,6 +82,16 @@ describe('Socket.IO 0.9 codec', () => {
     )
   })
 
+  test.each([
+    ['7:::1+0', { type: 'error', reason: 'client not handshaken', advice: 'reconnect' }],
+    ['7:::2', { type: 'error', reason: 'unauthorized' }],
+    ['7:::0+0', { type: 'error', reason: 'transport not supported', advice: 'reconnect' }],
+    ['7:::9', { type: 'error', reason: '9' }],
+    ['7:::', { type: 'error', reason: 'socket error' }],
+  ])('decodes the error packet %s by its reason and advice indices', (frame, packet) => {
+    expect(parseSocketPacket(frame)).toEqual(packet)
+  })
+
   test('accepts acknowledgements with no argument payload', () => {
     expect(parseSocketPacket('6:::7')).toEqual({
       type: 'ack',

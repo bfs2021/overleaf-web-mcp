@@ -1,9 +1,9 @@
 import type { AppConfig } from './config.js'
 import type { OverleafServiceRuntime } from './contracts/service.js'
-import { asMcpError, AUTH_LOGIN_INSTRUCTION, McpError } from './core/errors.js'
-import { retryRead } from './core/retry.js'
+import { asMcpError, McpError } from './core/errors.js'
+import { MAX_READ_ATTEMPTS, retryRead, type Sleep } from './core/retry.js'
 import { AccessPolicy } from './core/policy.js'
-import { parseBootstrapMeta, type BootstrapMeta } from './http/bootstrap.js'
+import { parseBootstrapMeta, requireCsrfToken, type BootstrapMeta } from './http/bootstrap.js'
 import { OverleafHttpClient } from './http/client.js'
 import { CookieStore } from './http/cookies.js'
 import { createProxyRoute, type ProxyRoute } from './http/proxy.js'
@@ -85,6 +85,8 @@ type Fetcher = (input: string | URL | Request, init?: RequestInit) => Promise<Re
 export interface RuntimeDependencies {
   fetcher?: Fetcher
   connectionFactory?: (projectId: string) => Promise<ProjectConnection>
+  /** Waits between attempts of a read; tests pass one that returns at once. */
+  sleep?: Sleep
 }
 
 /**
@@ -163,67 +165,56 @@ export class OverleafRuntime implements OverleafServiceRuntime {
     // One proxy decision, from readConfig, covers REST calls, the handshake, and the WebSocket.
     const proxy = config.proxyUrl === undefined ? undefined : createProxyRoute(config.proxyUrl)
     const fetcher = dependencies.fetcher ?? proxy?.fetcher
+    // A configuration built by hand may leave these out; readConfig's defaults apply.
+    const readAttempts = config.readAttempts ?? MAX_READ_ATTEMPTS
     const csrf = { token: undefined as string | undefined }
     const http = new OverleafHttpClient({
       baseUrl: config.baseUrl,
       jar: cookieStore.jar,
       defaultTimeoutMs: config.requestTimeoutMs,
-      readAttempts: config.readAttempts,
-      minRequestIntervalMs: config.minRequestIntervalMs,
+      readAttempts,
+      minRequestIntervalMs: config.minRequestIntervalMs ?? 0,
+      ...(dependencies.sleep === undefined ? {} : { sleep: dependencies.sleep }),
       csrfToken: () => csrf.token,
       persistSetCookies: async (url, values) => await cookieStore.mergeSetCookies(url, values),
       ...(fetcher === undefined ? {} : { fetcher }),
     })
 
     let bootstrap: BootstrapMeta
+    let csrfToken: string
     try {
       const bootstrapResponse = await http.request('GET', '/project')
       bootstrap = parseBootstrapMeta(await bootstrapResponse.text())
-      // A signed-in page without a token is a page this release does not understand, not a lost
-      // session: logging in again would not change it.
-      if (!bootstrap.csrfToken && bootstrap.userId !== undefined) {
-        throw new McpError(
-          'PROTOCOL_UNSUPPORTED',
-          'Overleaf served a signed-in project page without the CSRF token this release reads.',
-          { details: { kind: 'response_shape', endpoint: 'GET /project' } }
-        )
-      }
-      if (!bootstrap.csrfToken) {
-        throw new McpError(
-          'AUTH_EXPIRED',
-          `Overleaf did not expose an authenticated CSRF token. ${AUTH_LOGIN_INSTRUCTION}`
-        )
-      }
+      csrfToken = requireCsrfToken(bootstrap)
     } catch (error) {
       await proxy?.close()
       throw error
     }
-    csrf.token = bootstrap.csrfToken
+    csrf.token = csrfToken
 
     // Sockets are cached per project, while each document is freshly joined inside its queued call.
-    // Joining sends nothing to the project, so a join refused for a passing reason is a read to retry.
-    const factory =
+    const open =
       dependencies.connectionFactory ??
       (async (projectId: string) =>
-        await retryRead(
-          async () =>
-            await openProjectConnection({
-              baseUrl: config.baseUrl,
-              projectId,
-              jar: cookieStore.jar,
-              supportedProtocolVersions: config.supportedProtocolVersions,
-              timeoutMs: config.requestTimeoutMs,
-              applyTimeoutMs: config.applyTimeoutMs,
-              ...(bootstrap.userId === undefined ? {} : { currentUserId: bootstrap.userId }),
-              ...(fetcher === undefined ? {} : { fetcher }),
-              ...(proxy === undefined ? {} : { webSocketAgent: proxy.webSocketAgent }),
-            }),
-          {
-            attempts: config.readAttempts,
-            isTransient: isTransientJoinFailure,
-            details: { event: 'joinProject' },
-          }
-        ))
+        await openProjectConnection({
+          baseUrl: config.baseUrl,
+          projectId,
+          jar: cookieStore.jar,
+          supportedProtocolVersions: config.supportedProtocolVersions,
+          timeoutMs: config.requestTimeoutMs,
+          applyTimeoutMs: config.applyTimeoutMs,
+          ...(bootstrap.userId === undefined ? {} : { currentUserId: bootstrap.userId }),
+          ...(fetcher === undefined ? {} : { fetcher }),
+          ...(proxy === undefined ? {} : { webSocketAgent: proxy.webSocketAgent }),
+        }))
+    // Joining sends nothing to the project, so a join that failed for a passing reason is a read to retry.
+    const factory = async (projectId: string) =>
+      await retryRead(async () => await open(projectId), {
+        attempts: readAttempts,
+        isTransient: isTransientJoinFailure,
+        details: { event: 'joinProject' },
+        ...(dependencies.sleep === undefined ? {} : { sleep: dependencies.sleep }),
+      })
     const connections = new ProjectConnectionCache<ProjectConnection>({
       capacity: config.socketCacheSize,
       idleTtlMs: config.socketIdleTtlMs,

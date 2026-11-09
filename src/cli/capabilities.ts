@@ -56,8 +56,10 @@ export type ProjectLookup =
   { projectId: string; summary: ProjectSummary; review: { decide: boolean } } | { projectId: string; denied: true }
 
 /**
- * Describes what this install can do from its contracts and its configuration alone; only the
- * project fields need a request, and without a projectId they are `unknown`.
+ * Describes what this install can do from its contracts and its configuration alone. Only the
+ * project fields and `backend.review.decide` need requests, the project list and a join of the
+ * project's socket; without a projectId, or for one the policy refuses, they are `unknown`. The
+ * other `backend` fields describe the backend, not the access policy: `blockedEffects` does that.
  */
 export function buildCapabilities(config: AppConfig, lookup?: ProjectLookup): CapabilitiesReport {
   const allowed = config.allowedEffects === undefined ? undefined : new Set<Effect>(config.allowedEffects)

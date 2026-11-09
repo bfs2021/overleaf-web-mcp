@@ -171,7 +171,7 @@ const EXIT_TABLE: Record<ErrorCode, { write: number; read: number }> = {
   RATE_LIMITED: { write: 7, read: 7 },
   COMPILE_RATE_LIMITED: { write: 7, read: 7 },
   COMPILE_UNAVAILABLE: { write: 7, read: 7 },
-  TRANSIENT_FAILURE: { write: 7, read: 7 },
+  TRANSIENT_FAILURE: { write: 5, read: 7 },
   NOT_FOUND: { write: 1, read: 1 },
   PROTOCOL_UNSUPPORTED: { write: 1, read: 1 },
   UPDATE_TOO_LARGE: { write: 1, read: 1 },
@@ -933,6 +933,22 @@ describe('capabilities', () => {
       archived: true,
       trashed: false,
     })
+  })
+
+  test('a failed project join exits as the project listing would, and closes the session', async () => {
+    for (const [error, exitCode] of [
+      [new McpError('TRANSIENT_FAILURE', 'Join kept failing.', { retryable: true }), 7],
+      [new McpError('PERMISSION_DENIED', 'No access.'), 3],
+      [new McpError('TIMEOUT', 'Timed out.', { retryable: true }), 7],
+    ] as const) {
+      const fake = fakeServiceRuntime()
+      fake.reviewSupport.mockRejectedValueOnce(error)
+      const run = await cli(['capabilities', 'p'], { runtime: fake })
+      expect(run.exitCode, error.code).toBe(exitCode)
+      expect(run.stdout).toBe('')
+      expect(expectError(run)).toEqual(error.toJSON())
+      expect(fake.close).toHaveBeenCalledTimes(1)
+    }
   })
 
   test('a failed lookup exits as the project listing would', async () => {

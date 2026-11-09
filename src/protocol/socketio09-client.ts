@@ -103,8 +103,11 @@ export class SocketIo09Peer extends EventEmitter {
     } else if (packet.type === 'disconnect') {
       this.close()
     } else if (packet.type === 'error') {
+      // Advice to reconnect, as for a WebSocket that reached a real-time instance without its
+      // handshake, means a fresh connection can work.
       this.#failProtocol(
         new McpError('REMOTE_ERROR', 'Overleaf sent a Socket.IO error packet.', {
+          retryable: packet.advice === 'reconnect',
           details: { reason: upstreamReason(packet.reason) },
         })
       )

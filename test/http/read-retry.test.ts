@@ -100,6 +100,76 @@ describe('read retry', () => {
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
+  test('sends a POST marked as a read again, as the project list is', async () => {
+    const fetcher = vi
+      .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+      .mockResolvedValueOnce(new Response('busy', { status: 503 }))
+      .mockResolvedValueOnce(json({ projects: [] }))
+    const { http } = client(fetcher)
+
+    await expect(http.postJson('/api/project', {}, { read: true })).resolves.toEqual({ projects: [] })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    // It is still a POST, so it carries the CSRF header path and follows no redirect.
+    expect(fetcher.mock.calls[0]?.[1]?.redirect).toBe('manual')
+  })
+
+  test('never sends a postJson or postForm twice without the read mark', async () => {
+    const fetcher = vi.fn(async () => await Promise.resolve(new Response('busy', { status: 503 })))
+    const { http } = client(fetcher)
+
+    await expect(http.postJson('/project/p/doc', { name: 'a.tex' })).rejects.toMatchObject({ code: 'REMOTE_ERROR' })
+    await expect(http.postForm('/project/p/upload', new FormData())).rejects.toMatchObject({ code: 'REMOTE_ERROR' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  test('reads a GET whose body was cut off again, as a typed retryable failure', async () => {
+    const cutOff = (): Response =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"ok":'))
+            controller.error(new TypeError('terminated'))
+          },
+        }),
+        { headers: { 'content-type': 'application/json' } }
+      )
+    const fetcher = vi
+      .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+      .mockResolvedValueOnce(cutOff())
+      .mockResolvedValueOnce(json({ ok: true }))
+    const { http } = client(fetcher)
+    await expect(http.getJson('/api/thing')).resolves.toEqual({ ok: true })
+
+    const always = vi.fn(async () => await Promise.resolve(cutOff()))
+    const failing = client(always).http
+    await expect(failing.getBytes('/file')).rejects.toMatchObject({
+      code: 'TRANSIENT_FAILURE',
+      details: { attempts: 3, lastCode: 'REMOTE_ERROR', path: '/file' },
+    })
+  })
+
+  test('reports a write whose answer was cut off once, typed and not retryable', async () => {
+    const fetcher = vi.fn(
+      async () =>
+        await Promise.resolve(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new TypeError('terminated'))
+              },
+            })
+          )
+        )
+    )
+    const { http } = client(fetcher)
+    await expect(http.postJson('/project/p/doc', {})).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      retryable: false,
+      details: { kind: 'network' },
+    })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
   test('with readAttempts 1 a transient failure keeps its own code', async () => {
     const fetcher = vi.fn(async () => await Promise.resolve(new Response('busy', { status: 503 })))
     const { http } = client(fetcher, { readAttempts: 1 })
@@ -131,6 +201,30 @@ describe('retryRead', () => {
       code: 'NOT_FOUND',
     })
     expect(work).toHaveBeenCalledTimes(1)
+  })
+
+  test.each([undefined, Number.NaN, Number.POSITIVE_INFINITY])(
+    'makes one attempt when attempts is %s, never looping',
+    async attempts => {
+      const work = vi.fn(async () => {
+        throw new McpError('REMOTE_ERROR', 'x', { retryable: true })
+      })
+      await expect(
+        retryRead(work, { attempts: attempts as number, isTransient: () => true, sleep: async () => {} })
+      ).rejects.toMatchObject({ code: 'REMOTE_ERROR' })
+      expect(work).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  test('says the failed read changed nothing without claiming the call changed nothing', async () => {
+    const failure = await retryRead(
+      async () => {
+        throw new McpError('REMOTE_ERROR', 'x', { retryable: true })
+      },
+      { attempts: 2, isTransient: () => true, sleep: async () => {} }
+    ).catch((error: unknown) => error as McpError)
+    expect(failure.message).toMatch(/the read itself changed nothing/u)
+    expect(failure.message).not.toMatch(/Nothing was changed/u)
   })
 
   test('caps attempts at three', async () => {

@@ -129,6 +129,85 @@ describe('runtime bootstrap', () => {
     expect(close).toHaveBeenCalled()
   })
 
+  describe('project join retry', () => {
+    const page = async (): Promise<Response> =>
+      await Promise.resolve(
+        new Response('<meta name="ol-csrfToken" content="csrf"><meta name="ol-user_id" content="user">')
+      )
+    const joined = (close = vi.fn()) =>
+      ({ permissionsLevel: 'owner', project: {}, closed: false, close }) as unknown as ProjectConnection
+    const passing = () =>
+      new McpError('REMOTE_ERROR', 'Socket disconnected during project join.', {
+        retryable: true,
+        details: { reason: 'disconnected' },
+      })
+
+    test('joins again after a passing failure and uses the connection that followed', async () => {
+      const sleep = vi.fn(async () => await Promise.resolve())
+      const connectionFactory = vi
+        .fn<(projectId: string) => Promise<ProjectConnection>>()
+        .mockRejectedValueOnce(passing())
+        .mockResolvedValueOnce(joined())
+      const runtime = await OverleafRuntime.create(await savedSessionConfig(), {
+        fetcher: page,
+        connectionFactory,
+        sleep,
+      })
+      await expect(runtime.reviewSupport('project')).resolves.toEqual({ decide: true })
+      expect(connectionFactory).toHaveBeenCalledTimes(2)
+      expect(sleep).toHaveBeenCalledTimes(1)
+      await runtime.close()
+    })
+
+    test('ends in TRANSIENT_FAILURE naming the join after OVERLEAF_READ_ATTEMPTS attempts', async () => {
+      const connectionFactory = vi.fn(async () => await Promise.reject(passing()))
+      const config = { ...(await savedSessionConfig()), readAttempts: 2 }
+      const runtime = await OverleafRuntime.create(config, {
+        fetcher: page,
+        connectionFactory,
+        sleep: async () => await Promise.resolve(),
+      })
+      await expect(runtime.reviewSupport('project')).rejects.toMatchObject({
+        code: 'TRANSIENT_FAILURE',
+        retryable: true,
+        details: { attempts: 2, lastCode: 'REMOTE_ERROR', reason: 'disconnected', event: 'joinProject' },
+      })
+      expect(connectionFactory).toHaveBeenCalledTimes(2)
+      await runtime.close()
+    })
+
+    test.each([
+      new McpError('RATE_LIMITED', 'limited', { retryable: true }),
+      new McpError('TIMEOUT', 'slow', { retryable: true }),
+      new McpError('PERMISSION_DENIED', 'no'),
+    ])('does not join again after %s', async error => {
+      const connectionFactory = vi.fn(async () => await Promise.reject(error))
+      const runtime = await OverleafRuntime.create(await savedSessionConfig(), {
+        fetcher: page,
+        connectionFactory,
+        sleep: async () => await Promise.resolve(),
+      })
+      await expect(runtime.reviewSupport('project')).rejects.toBe(error)
+      expect(connectionFactory).toHaveBeenCalledTimes(1)
+      await runtime.close()
+    })
+
+    test('a configuration built without the retry fields joins up to three times, never forever', async () => {
+      const config = await savedSessionConfig()
+      delete config.readAttempts
+      delete config.minRequestIntervalMs
+      const connectionFactory = vi.fn(async () => await Promise.reject(passing()))
+      const runtime = await OverleafRuntime.create(config, {
+        fetcher: page,
+        connectionFactory,
+        sleep: async () => await Promise.resolve(),
+      })
+      await expect(runtime.reviewSupport('project')).rejects.toMatchObject({ code: 'TRANSIENT_FAILURE' })
+      expect(connectionFactory).toHaveBeenCalledTimes(3)
+      await runtime.close()
+    })
+  })
+
   test('still reports a redirect to /login as AUTH_EXPIRED', async () => {
     const config = await savedSessionConfig()
     const fetcher = async (): Promise<Response> => {

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import { describe, expect, test, vi } from 'vitest'
 
+import { exitCodeForError } from '../../src/cli/exit-codes.js'
 import { McpError } from '../../src/core/errors.js'
 import { AccessPolicy } from '../../src/core/policy.js'
 import { ProjectsApi } from '../../src/overleaf/projects.js'
@@ -352,6 +353,32 @@ describe('projects API', () => {
       expect(http.postJson).toHaveBeenCalledTimes(3)
       expect(options.invalidate).toHaveBeenCalledTimes(1)
       expect(options.getProjectTree).not.toHaveBeenCalled()
+    })
+
+    test('says every setting was stored when only reading them back fails', async () => {
+      const { api, http, options } = harness()
+      options.getProjectTree.mockRejectedValueOnce(
+        new McpError('TRANSIENT_FAILURE', 'join kept failing', {
+          retryable: true,
+          details: { attempts: 3, lastCode: 'REMOTE_ERROR', event: 'joinProject' },
+        })
+      )
+
+      const failure = await api.updateProjectSettings('p', { compiler: 'xelatex', spellCheckLanguage: 'fr' }).then(
+        () => {
+          throw new Error('expected a failure')
+        },
+        (error: unknown) => error as McpError
+      )
+      expect(failure).toMatchObject({
+        code: 'TRANSIENT_FAILURE',
+        retryable: false,
+        details: { applied: ['compiler', 'spellCheckLanguage'], event: 'joinProject' },
+      })
+      expect(failure.message).toMatch(/Every setting was stored/u)
+      expect(http.postJson).toHaveBeenCalledTimes(2)
+      // The command line exits 4: read what is there, never re-run the whole call.
+      expect(exitCodeForError(failure, 'update_project_settings')).toBe(4)
     })
 
     test('keeps the code and retryability of a failure on the first setting', async () => {

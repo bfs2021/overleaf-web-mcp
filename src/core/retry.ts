@@ -30,10 +30,13 @@ function backoffMs(attempt: number): number {
  * Runs a read and tries it again after a transient failure, with bounded exponential backoff.
  * Only reads go through here: a write is never resubmitted by this package. When every attempt
  * failed transiently, the last failure becomes `TRANSIENT_FAILURE`; any other failure is thrown
- * as it is, at once.
+ * as it is, at once. The read changed nothing, but a call can read after it wrote, as to read a
+ * result back, so the error does not say the call changed nothing.
  */
 export async function retryRead<T>(work: () => Promise<T>, options: ReadRetryOptions): Promise<T> {
-  const attempts = Math.min(Math.max(1, Math.trunc(options.attempts)), MAX_READ_ATTEMPTS)
+  // A value that is not a number, as from a configuration built by hand, never loops: one attempt.
+  const requested = Number.isFinite(options.attempts) ? Math.trunc(options.attempts) : 1
+  const attempts = Math.min(Math.max(1, requested), MAX_READ_ATTEMPTS)
   const sleep = options.sleep ?? defaultSleep
   for (let attempt = 1; ; attempt += 1) {
     try {
@@ -44,7 +47,7 @@ export async function retryRead<T>(work: () => Promise<T>, options: ReadRetryOpt
       if (attempt >= attempts || options.signal?.aborted === true) {
         throw new McpError(
           'TRANSIENT_FAILURE',
-          `Overleaf kept failing after ${attempt} attempts of a read. Nothing was changed; try again later.`,
+          `A read from Overleaf failed ${attempt} times in a row for a reason that usually passes; the read itself changed nothing. Try again later. If this call changes something, check the project first: the change may have been sent before the read failed.`,
           {
             retryable: true,
             details: {
