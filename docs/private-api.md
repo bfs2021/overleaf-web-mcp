@@ -14,7 +14,7 @@ unexpected shape surfaces as `PROTOCOL_UNSUPPORTED` rather than a parse exceptio
 
 | Method and route | Sent | Read | Notes |
 | --- | --- | --- | --- |
-| `GET /project` | session cookie | `<meta name="ol-csrfToken">`, `ol-user_id`, `ol-maxDocLength` from the HTML | Runs once at startup. A missing CSRF token means the session expired (`AUTH_EXPIRED`). |
+| `GET /project` | session cookie | `<meta name="ol-csrfToken">`, `ol-user_id`, `ol-maxDocLength` from the HTML | Runs once at startup. A missing or empty CSRF token on a page with no signed-in user means the session expired (`AUTH_EXPIRED`); on a page that names one (`ol-user_id`) it is `PROTOCOL_UNSUPPORTED` with `details.kind: "response_shape"`. |
 | `GET /socket.io/1/?...` and `WS /socket.io/1/websocket/:sessionId` | session cookie, `projectId` | Socket.IO 0.9 handshake, then the `joinProject` payload: `project.rootFolder`, `rootDoc_id`, `compiler`, `imageName`, `spellCheckLanguage`, `trackChangesState`, `features.trackChanges`, `features.trackChangesVisible`, `permissionsLevel`, `protocolVersion` | One cached socket per project; document text goes over this channel as OT. Each join counts against web's join-project limiter: 45 a minute for one user on one project. Past it the socket sends `connectionRejected` `{ message: "rate-limit hit when joining project", code: "TooManyRequests" }` (captured live), reported as `RATE_LIMITED` with `details.reason: "join_rate_limited"`. |
 
 ## Projects
@@ -258,16 +258,28 @@ message, as real-time's `Router.js` and `WebApiManager.js` send them:
 | Payload | Code | `details.reason` |
 | --- | --- | --- |
 | `invalid session` | `AUTH_EXPIRED` | `invalid_session` |
-| `rate-limit hit when joining project`, code `TooManyRequests` | `RATE_LIMITED`, retryable | `join_rate_limited` |
+| `rate-limit hit when joining project`, code `TooManyRequests`; or `too many requests` | `RATE_LIMITED`, retryable | `join_rate_limited`; `rate_limited` |
 | `retry`, sent while real-time shuts down | `TRANSIENT_FAILURE`, retryable | `retry` |
-| `not authorized`, web answered the join with 403 | `PERMISSION_DENIED` | `not_authorized` |
+| `not authorized`, web answered the join with 403; or `unauthorized` | `PERMISSION_DENIED` | `not_authorized`; `unauthorized` |
 | `project not found`, code `ProjectNotFound` | `NOT_FOUND` | `project_not_found` |
 | `missing/bad ?projectId=... query flag on handshake` | `INVALID_ARGUMENT` | `bad_project_id` |
 | `error`, or `Something went wrong in real-time service` | `REMOTE_ERROR`, retryable | `connection_error`, `realtime_error` |
-| anything else | `REMOTE_ERROR` | `unrecognized` |
+| anything else | `REMOTE_ERROR` | the identifier the message maps to among those above, otherwise `unrecognized` |
 
-A join that failed with a retryable code other than `RATE_LIMITED` is tried again, as a read is
-([retries and pacing](configuration.md#retries-and-pacing)). Since 1.0.0 only `invalid session`
-means the session expired; before it, every rejection but the rate limit was `AUTH_EXPIRED`. A
-project page that names a signed-in user (`ol-user_id`) but carries no `ol-csrfToken` is
-`PROTOCOL_UNSUPPORTED` with `details.kind: "response_shape"`, not `AUTH_EXPIRED`.
+A join that failed before Overleaf answered it, for a reason that passes, is tried again as a read
+is ([retries and pacing](configuration.md#retries-and-pacing)): a `retry` refusal, a retryable
+`REMOTE_ERROR` (`connection_error`, `realtime_error`, `disconnected` for a socket that closed or
+failed during the join, a handshake that failed on the network or answered HTTP 5xx, and a
+Socket.IO error packet advising a reconnect, such as `client not handshaken`, `not_handshaken`).
+A rate-limited, refused, or timed-out join is not. With retries on, a join that kept failing ends
+as `TRANSIENT_FAILURE` with `details.event: "joinProject"`, `details.lastCode`, and the last
+`details.reason`.
+
+Since 1.0.0 only `invalid session` is reported as an expired session; before it, every rejection
+but the rate limit was `AUTH_EXPIRED`. Overleaf also answers `not authorized` to a session that is
+no longer signed in, since real-time then joins as an anonymous user and web refuses that join, so
+its message says to check `auth_status`. A project page that names a signed-in user
+(`ol-user_id`) but carries no `ol-csrfToken` is `PROTOCOL_UNSUPPORTED` with
+`details.kind: "response_shape"`, not `AUTH_EXPIRED`. A `joinProjectResponse` without the fields
+this release reads is `PROTOCOL_UNSUPPORTED` with `details.kind: "response_shape"` and
+`details.event: "joinProject"`, and its socket is closed.

@@ -127,12 +127,9 @@ The server answers the 2025-era MCP protocol versions, 2024-10-07 through 2025-1
 `initialize` handshake, and 2026-07-28 with `server/discover`. The test suite drives both eras
 through the real stdio server over piped streams, a 2025-11-25 client and a 2026-07-28 client,
 and checks that each receives the usage instructions, lists every tool, and sees nothing on stdout
-but JSON-RPC.
-
-MCP clients checked by hand against a real Overleaf account:
-
-| Client | Version | Negotiated protocol | Checked on |
-| --- | --- | --- | --- |
+but JSON-RPC. If a client does not work, run `npx overleaf-web-mcp doctor <projectId>` and
+[open an issue](https://github.com/mhmdaskari/overleaf-web-mcp/issues) with its output, the client,
+and the client's version.
 
 ## Without an MCP client
 

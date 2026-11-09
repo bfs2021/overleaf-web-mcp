@@ -163,6 +163,9 @@ trailing newline: the tool's result, the same object the MCP server returns as
 `structuredContent` and the [SDK](sdk.md) method resolves with. stderr stays empty unless
 `--progress` was given.
 
+`doctor` is the exception: it prints its report on stdout whether it exits 0 or 1
+([checking an install](#checking-an-install)).
+
 On failure stdout stays empty, and stderr gets exactly one line,
 `{ "code", "message", "retryable", "details"? }`, the same error the MCP server returns. Messages
 never repeat option values or request content; they can name local paths you supplied. The codes
@@ -223,7 +226,7 @@ Four rules reach beyond the codes in the table, and one rule overrides everythin
   again later.
 - **Opening the session is a read.** A failure while the command loads and checks the saved
   session, before its operation starts, exits as a read's would, even for a command that writes:
-  a `TIMEOUT` there exits 7, since nothing of the operation was sent.
+  a `TIMEOUT` or `TRANSIENT_FAILURE` there exits 7, since nothing of the operation was sent.
 
 The read-only operations are those annotated so in the [tool reference](tools.md): `auth_status`,
 `list_projects`, `get_project_tree`, `read_file`, `plan_sync`, `get_full_document`,
@@ -310,7 +313,7 @@ ids, statuses, and error codes. The checks, in order:
 
 | Check | What passes |
 | --- | --- |
-| `config` | The configuration and the access policy resolve, and the policy allows reading from Overleaf. |
+| `config` | The access policy resolves (each local root folder exists) and allows reading from Overleaf (`overleaf-read` in `OVERLEAF_ALLOWED_EFFECTS`). |
 | `session.cookieJar` | A saved session exists and loads. |
 | `bootstrap.page` | `GET /project` answers without sending you to the login page. |
 | `bootstrap.csrfToken`, `bootstrap.userId` | The project page carries the token and the signed-in user this release reads. |
@@ -324,16 +327,22 @@ Each `status` is `ok`, `failed` (with the error `code`), `unsupported` (Overleaf
 shape or protocol this release does not understand, `code: "PROTOCOL_UNSUPPORTED"`), or `skipped`
 (an earlier check failed, no `projectId` was given, or the project has no root document). Without
 a `projectId` every check from `policy.project` on is skipped and no project socket is opened.
-`doctor` exits 0 when no check failed or was unsupported, and 1 otherwise; a `projectId` that is
-not a project id exits 2. It never writes anything: no OT update, upload, or other change is sent.
-Each request is tried once, so a passing failure shows as it is. Checking a project joins its
-socket, which shows the account online to collaborators until `doctor` exits.
+`doctor` exits 0 when no check failed or was unsupported, and 1 otherwise. It is the one command
+whose report is printed even when it exits 1: the report is its result, so stdout holds it and
+stderr stays empty. An environment variable that cannot be read, or a `projectId` with a
+character no project id has, fails before any check, as a usage error: no report, the usual one
+JSON error line on stderr, and exit 2. A well-formed id of no project fails at `joinProject`.
+`doctor` never writes anything: no OT update, upload, or other change is sent. Each request is
+tried once, so a passing failure shows as it is, and requests are paced by
+`OVERLEAF_MIN_REQUEST_INTERVAL_MS`. Checking a project joins its socket, which shows the account
+online to collaborators until `doctor` exits.
 
 ## Sessions, presence, and request volume
 
 Each command is its own session. It loads the saved session, makes one `GET /project` to check
 it, may open a project connection, and closes everything before it exits; `schema`, and
-`capabilities` and `doctor` without a project id, open none. While it runs, the
+`capabilities` without a project id, open none, and `doctor` without one opens no project
+connection. While it runs, the
 account may appear online to collaborators in the editor. Nothing is kept between commands, so a
 shell loop over files pays that start-up for every file and multiplies the requests Overleaf
 sees. For many files, use one command:
@@ -360,10 +369,13 @@ The access policy is per process as well. Under `OVERLEAF_ALLOWED_PROJECTS`, a p
 that command only. The next command refuses it with `POLICY_DENIED` (exit 3) until its id is
 added to `OVERLEAF_ALLOWED_PROJECTS`.
 
-## No prompts, no confirmations, no retries
+## No prompts, no confirmations, no re-runs
 
-An operation command never prompts, never opens a browser (only `login` does), and never
-retries. No flag supplies a confirm value for you: there is no `--yes` or `--force`. Destructive
+An operation command never prompts, never opens a browser (only `login` does), and never re-runs
+a write or the command itself. Below it, a read that failed on the network or with HTTP 5xx, and
+a project join that failed for a reason that passes, are tried again up to
+`OVERLEAF_READ_ATTEMPTS` attempts in all before the command fails with `TRANSIENT_FAILURE`; see
+[retries and pacing](configuration.md#retries-and-pacing). No flag supplies a confirm value for you: there is no `--yes` or `--force`. Destructive
 tools take the same confirm-by-value parameters or expected state as through MCP, such as
 `confirmPath`, `confirmName`, `confirmCount`, `--confirm-delete-count`, `--overwrite`,
 `--revision`, or `--plan-token`. A call without one, or with a confirm value that does not match,

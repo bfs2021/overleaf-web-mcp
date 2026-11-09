@@ -47,7 +47,9 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
   Every other command, `login`, `keepalive`, and every operation command, prints exactly one JSON
   value on stdout. A failed operation command leaves stdout empty and writes exactly one stderr
   line, `{ code, message, retryable, details? }`; otherwise its stderr stays empty unless
-  `--progress` asked for JSON progress lines. `login` keeps its plain-text status lines on stderr.
+  `--progress` asked for JSON progress lines. `doctor` is the one exception: its report is its
+  result, printed on stdout with stderr empty even when a check fails and it exits 1. `login`
+  keeps its plain-text status lines on stderr.
   Diagnostics go to stderr as JSON, and only `src/cli.ts` writes them: `src/cli/` writes through
   the `CliIo` streams it is handed.
 - Writes are never retried automatically, by any interface: the CLI and the SDK add no retry, and

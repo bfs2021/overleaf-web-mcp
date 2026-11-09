@@ -115,8 +115,11 @@ the tree before doing anything else, and never call the write again blindly.
 
 ## Stable surface
 
-These exports follow the project's versioning: until 1.0.0 a change can come in a minor release,
-and every change is listed in the [changelog](changelog.md).
+These exports follow [Semantic Versioning](https://semver.org) from 1.0.0: a breaking change waits
+for a major version, a deprecation is announced at least one minor version ahead with both names
+working, and every change is listed in the [changelog](changelog.md). `AppConfig` gained two
+optional fields in 1.0.0, `readAttempts` and `minRequestIntervalMs`, which `readConfig` fills in;
+a configuration built by hand without them gets the same defaults.
 
 | Export | What it is |
 | --- | --- |
@@ -149,7 +152,7 @@ and every change is listed in the [changelog](changelog.md).
 
 Everything else the module exports is internal and can change in any release: the other fields
 and methods of `OverleafRuntime` (`http`, `documents`, `connections`, `policy`, and the domain
-APIs), `RuntimeDependencies` with its `fetcher` and `connectionFactory`, the `dependencies` option
+APIs), `RuntimeDependencies` with its `fetcher`, `connectionFactory`, and `sleep`, the `dependencies` option
 of `createOverleafClient`, and the `OverleafServiceRuntime` and `OperationHandler` types.
 
 ## Using the service directly

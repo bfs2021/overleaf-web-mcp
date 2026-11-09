@@ -19,31 +19,45 @@ reports what the backend can do in a project. The server still registers 34 tool
 
 ### Added
 
-- **`TRANSIENT_FAILURE`** error code, always `retryable: true`, for a read that kept failing for a
-  reason that passes, and for a project join Overleaf refused with `retry`, as while restarting.
-  Nothing was changed when it is returned. The command line exits 7 for it.
-- **Bounded retry for reads only.** A `GET` that failed on the network or with HTTP 5xx, and a
-  project join refused for a passing reason or closed before Overleaf answered, are tried again
-  after a short randomized exponential backoff, up to `OVERLEAF_READ_ATTEMPTS` attempts in all
-  (default 3, at most 3; 1 turns retries off). Exhausted, the call fails with
-  `TRANSIENT_FAILURE`, `details.attempts`, `details.lastCode`, and, when known, `details.status`,
-  `details.reason`, and `details.path`. No request that changes something is ever sent twice, and
-  no read that timed out, was rate-limited, or was refused is retried.
+- **`TRANSIENT_FAILURE`** error code, `retryable: true`, for a read that kept failing for a reason
+  that passes, and for a project join Overleaf refused with `retry`, as while restarting. The
+  failed read changed nothing. A tool that writes can return it after its change was sent, when
+  reading the result back failed; then it is not retryable, and `details.created` or
+  `details.applied` says what changed where the tool knows. The command line exits 7 for it from
+  a read-only operation and 5 from one that writes, or 4 with `details.created` or
+  `details.applied`.
+- **Bounded retry for reads only.** A read, a `GET` or the project list's `POST /api/project`,
+  that failed on the network, was cut off, or answered HTTP 5xx, and a project join that failed
+  before Overleaf answered it for a passing reason (a `retry` refusal, real-time's own failure, a
+  socket that closed or failed, a handshake network failure or HTTP 5xx, or a Socket.IO error
+  packet advising a reconnect), are tried again after a short randomized exponential backoff, up
+  to `OVERLEAF_READ_ATTEMPTS` attempts in all (default 3, at most 3; 1 turns retries off).
+  Exhausted, the call fails with `TRANSIENT_FAILURE`, `details.attempts`, `details.lastCode`, and,
+  when known, `details.status`, `details.reason`, `details.path`, and `details.event:
+  "joinProject"`. No request that changes something is ever sent twice, and no read that timed
+  out, was rate-limited, or was refused is retried.
+- **`AppConfig`** gains two optional fields, `readAttempts` and `minRequestIntervalMs`, which
+  `readConfig` fills in from the two new variables; a configuration built without them gets the
+  same defaults.
 - **`overleaf-web-mcp doctor [projectId]`**, a command line check of an install, read-only:
   the configuration and access policy, the saved session, the bootstrap page and its CSRF token
   and user, the project list, and with a `projectId` the Socket.IO handshake, `joinProject` and
   its protocol version, and a join and leave of the root document. It prints
   `{ version, checks: [{ id, status, code? }] }` with `status` `ok`, `failed`, `unsupported`, or
   `skipped`, names no project, file, or person, sends no update, and exits 1 when any check failed
-  or was unsupported. It is not an MCP tool.
+  or was unsupported, its report still on stdout. An environment variable it cannot read exits 2
+  with the usual error line. It is not an MCP tool.
 - **`backend` in the `capabilities` report**: `{ kind: "web-session", liveRevisions,
   trackedWrites, review: { list, decide }, comments, compile, history }`. With a `projectId`,
   `review.decide` says whether this account can accept or reject tracked changes there; without
-  one it is `"unknown"`. `capabilities <projectId>` now joins the project's socket to find out.
+  one, or for one the access policy refuses, it is `"unknown"`. `capabilities <projectId>` now joins the project's socket to find out.
 - **`OVERLEAF_MIN_REQUEST_INTERVAL_MS`** (default 0, at most 60000) spaces the starts of REST
   requests from one process.
-- A network failure of a REST request is `REMOTE_ERROR` with `details.kind: "network"`, and a
-  Socket.IO handshake answered with an HTTP error carries `details.status`, `retryable` for 5xx.
+- A network failure of a REST request, or an answer cut off before it was read, is `REMOTE_ERROR`
+  with `details.kind: "network"`; before, a cut-off answer surfaced as an untyped `REMOTE_ERROR`.
+  A Socket.IO handshake answered with an HTTP error carries `details.status`, `retryable` for 5xx.
+- Socket.IO error packets are decoded: `7:::1+0` is `client not handshaken`
+  (`details.reason: "not_handshaken"`) with the advice to reconnect, `retryable: true`.
 
 ### Changed
 
@@ -53,11 +67,24 @@ reports what the backend can do in a project. The server still registers 34 tool
   `NOT_FOUND`; a bad project id is `INVALID_ARGUMENT`; `too many requests` joins the join limiter
   as `RATE_LIMITED`; real-time's own failures are retryable `REMOTE_ERROR`
   (`details.reason: "connection_error"` or `"realtime_error"`); and anything else is
-  `REMOTE_ERROR` with `details.reason: "unrecognized"`. An agent is no longer told to sign in again
+  `REMOTE_ERROR` with the identifier its message maps to, or `details.reason: "unrecognized"`. An agent is no longer told to sign in again
   for a failure a new login would not fix. The command line's exit code follows the new code.
-- **A signed-in project page without a CSRF token** is `PROTOCOL_UNSUPPORTED` with
-  `details.kind: "response_shape"` and `details.endpoint: "GET /project"`, not `AUTH_EXPIRED`. A
-  page with no signed-in user, or a redirect to `/login`, is still `AUTH_EXPIRED`.
+  `not authorized` can also mean a session that is no longer signed in, as Overleaf's own editor
+  reads it, so its message says to check `auth_status`.
+- **A signed-in project page without a CSRF token**, or with an empty one, is
+  `PROTOCOL_UNSUPPORTED` with `details.kind: "response_shape"` and `details.endpoint: "GET
+  /project"`, not `AUTH_EXPIRED`. A page with no signed-in user, or a redirect to `/login`, is
+  still `AUTH_EXPIRED`.
+- **Project joins that failed without an answer.** A Socket.IO handshake that failed on the
+  network is retryable `REMOTE_ERROR` (`details.kind: "network"`), not `TIMEOUT`; only a handshake
+  that timed out is `TIMEOUT`. A transport error during the join, such as an upgrade refused with
+  HTTP 502, is retryable `REMOTE_ERROR` with `details.reason: "disconnected"`, as a socket that
+  closed is. A `joinProjectResponse` without the fields this release reads is
+  `PROTOCOL_UNSUPPORTED` with `details.kind: "response_shape"` and `details.event: "joinProject"`,
+  and every failed join closes its socket; before, such an answer could leave the socket open.
+- **`update_project_settings`** whose settings were all stored but whose read-back failed says so:
+  the error keeps its code, is not retryable, and carries `details.applied`, so the command line
+  exits 4.
 - The tool output schemas that list error codes include `TRANSIENT_FAILURE`.
 - The Agent Skills and the command line guide pin `npx --yes overleaf-web-mcp@1.0`.
 
