@@ -1,0 +1,23 @@
+/* Version badges, after the version convention of Material for MkDocs. */
+.md-typeset .mdx-badge {
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.md-typeset .mdx-badge__icon {
+  padding: 0.2rem;
+  background: var(--md-accent-fg-color--transparent);
+  border-start-start-radius: 0.1rem;
+  border-end-start-radius: 0.1rem;
+}
+
+.md-typeset .mdx-badge__icon:last-child {
+  border-radius: 0.1rem;
+}
+
+.md-typeset .mdx-badge__text {
+  padding: 0.2rem 0.3rem;
+  border-start-end-radius: 0.1rem;
+  border-end-end-radius: 0.1rem;
+  box-shadow: 0 0 0 1px inset var(--md-accent-fg-color--transparent);
+}

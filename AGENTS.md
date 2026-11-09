@@ -124,6 +124,9 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
 - `test/cli/docs.test.ts` asserts every `operationCommandUsages()` line and every exit code appear
   in `docs/cli.md`, both new pages are in the `mkdocs.yml` nav, and every name `docs/sdk.md` lists
   as stable is exported from `src/sdk.ts`.
+- `test/docs-versions.test.ts` checks that every `<!-- md:version X.Y.Z -->` tag in `docs/*.md`
+  names a release with a `## [X.Y.Z]` heading in `CHANGELOG.md`, and that every tool heading,
+  command, variable, error code, and stable export carries one.
 - `test/skills.test.ts` parses every command line in `skills/*/SKILL.md` against the CLI parser
   and refuses any mention of `@modelcontextprotocol`, `src/`, or the cookie jar.
 
@@ -139,6 +142,12 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
 - `docs/cli.md` lists every command `renderHelp` prints, and `docs/sdk.md` names the stable
   `overleaf-web-mcp/core` surface; a test holds both.
 - `skills/*/SKILL.md` use only commands `renderHelp` lists and name no assistant or model.
+- Every feature on the site carries a version tag, `<!-- md:version X.Y.Z -->`, which
+  `overrides/hooks/shortcodes.py` renders as a badge linking to that release in the changelog;
+  `mkdocs build` fails on a version without a `## [X.Y.Z]` heading. The tag goes on the line under
+  a tool heading, in the `Since` column of the command, variable, error-code, and stable-export
+  tables, and at the end of the Meaning cell for a parameter or value added after its tool
+  shipped. `docs/versions.md` lists each release's additions.
 
 ## Conventions for new work
 
@@ -218,6 +227,11 @@ Each addition touches several files, and the tests fail until they agree.
 - **A stable SDK export:** `src/sdk.ts`, the stable table in `docs/sdk.md`, and the `PROMISED`
   list in `test/cli/docs.test.ts`, which is what fails if the export is later removed.
 
+Each addition also gets a version tag with the next version on its page and an entry under that
+version in `docs/versions.md` (see **Documentation**). Tagging against the `Unreleased` heading
+is right: the anchor is read from `CHANGELOG.md` at build time, so the badge follows the heading
+when the release is dated.
+
 Every one of these is listed in `CHANGELOG.md` under the next version. That section opens with the
 first change on a release branch, as a line `## [X.Y.Z] - Unreleased` at the top of the file,
 under the header paragraph.
@@ -288,8 +302,9 @@ request what you found:
 3. **Documentation.** The pages that describe what changed agree with the code: `docs/tools.md`,
    the error table in `docs/safety.md`, the exit-code table in `docs/cli.md`, the variables in
    `docs/configuration.md`, `docs/private-api.md`, the stable surface in `docs/sdk.md`, and the
-   README's tool table and counts. Snapshots and golden results change only with a change the
-   changelog lists.
+   README's tool table and counts. Every addition carries a version tag and is listed in
+   `docs/versions.md`. Snapshots and golden results change only with a change the changelog
+   lists.
 4. **Offline checks.** `npm run check`, `npm run lint`, `npm run format:check`, `npm test`,
    `npm run build`, `npx tsx scripts/check-pack.ts`, and `mkdocs build --strict` all pass.
 5. **Live tests.** Any release that changes code under `src/overleaf/`, `src/protocol/`,

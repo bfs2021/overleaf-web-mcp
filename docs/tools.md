@@ -34,6 +34,8 @@ announced these with a `deprecations` list in the result; the
 
 ### `auth_status` <small>read-only</small>
 
+<!-- md:version 0.1.0 -->
+
 Verify the saved web session without exposing cookies.
 
 No parameters.
@@ -47,15 +49,17 @@ connection can show the account as online. A missing or expired session fails wi
 
 ### `list_projects` <small>read-only</small>
 
+<!-- md:version 0.1.0 -->
+
 List the projects the account can access, newest first by default.
 
 | Parameter | Required | Meaning |
 | --- | :---: | --- |
-| `query` | no | Case-insensitive substring of the project name |
-| `includeArchived` | no | Include archived projects; default `false` |
-| `includeTrashed` | no | Include trashed projects; default `false` |
-| `limit` | no | Maximum projects returned; default 50, at most 200 |
-| `sort` | no | `lastUpdated` (newest first, the default) or `name` |
+| `query` | no | Case-insensitive substring of the project name <!-- md:version 0.2.0 --> |
+| `includeArchived` | no | Include archived projects; default `false` <!-- md:version 0.2.0 --> |
+| `includeTrashed` | no | Include trashed projects; default `false` <!-- md:version 0.2.0 --> |
+| `limit` | no | Maximum projects returned; default 50, at most 200 <!-- md:version 0.2.0 --> |
+| `sort` | no | `lastUpdated` (newest first, the default) or `name` <!-- md:version 0.2.0 --> |
 
 Returns `projects`, an array of `{ id, name, accessLevel, lastUpdated, archived, trashed }`,
 plus `totalMatched` (how many passed the filters before `limit`) and `totalProjects` (everything
@@ -66,6 +70,8 @@ expose.
 ## Project lifecycle
 
 ### `create_project`
+
+<!-- md:version 0.2.0 -->
 
 Create a new project and return its id.
 
@@ -82,6 +88,8 @@ the stub. If the project was created but its tree could not be read, the error c
 
 ### `clone_project`
 
+<!-- md:version 0.2.0 -->
+
 Copy an existing project, its files, root document, and compiler included, into a new one.
 
 | Parameter | Required | Meaning |
@@ -94,6 +102,8 @@ spell-check language: the copy gets the account's defaults. Set them with
 `update_project_settings` when they matter.
 
 ### `import_project_zip`
+
+<!-- md:version 0.2.0 -->
 
 Create a new project from a local `.zip` archive of LaTeX sources.
 
@@ -120,6 +130,8 @@ sentence, which is never quoted, so there is usually none. If the archive has se
 
 ### `manage_project` <small>destructive</small>
 
+<!-- md:version 0.2.0 -->
+
 Rename, trash, restore, archive, unarchive, or permanently delete a project.
 
 | Parameter | Required | Meaning |
@@ -138,6 +150,8 @@ changes nothing. Trashed and archived projects disappear from `list_projects` un
 `includeTrashed` or `includeArchived` is set.
 
 ### `update_project_settings`
+
+<!-- md:version 0.2.0 -->
 
 Persist compile and editor settings in the project itself, so the web UI follows them too.
 
@@ -165,6 +179,8 @@ itself may or may not have been stored. Call `get_project_tree` to see the store
 
 ### `get_project_tree` <small>read-only</small>
 
+<!-- md:version 0.1.0 -->
+
 Return the file and folder tree together with the project's compile settings.
 
 | Parameter | Required | Meaning |
@@ -183,6 +199,8 @@ when the project has none, for example a project without a root document.
 
 ### `read_file` <small>read-only</small>
 
+<!-- md:version 0.1.0 -->
+
 Read a text document.
 
 | Parameter | Required | Meaning |
@@ -196,6 +214,8 @@ Returns `content` with line endings normalized to LF, the opaque `revision` need
 
 ### `write_file` <small>destructive</small>
 
+<!-- md:version 0.1.0 -->
+
 Replace a text document with a revision-checked, verified edit of only the words that differ.
 
 | Parameter | Required | Meaning |
@@ -204,8 +224,8 @@ Replace a text document with a revision-checked, verified edit of only the words
 | `filePath` | yes | Document path |
 | `revision` | yes | The revision from a prior `read_file` or write of this document |
 | `content` | one of | Complete replacement text |
-| `localPath` | one of | Local UTF-8 file holding the complete replacement. Non-UTF-8 content is rejected; a leading byte order mark is stripped |
-| `writeMode` | no | `untracked` (default) or `tracked` to record the edit as Overleaf tracked changes |
+| `localPath` | one of | Local UTF-8 file holding the complete replacement. Non-UTF-8 content is rejected; a leading byte order mark is stripped <!-- md:version 0.1.3 --> |
+| `writeMode` | no | `untracked` (default) or `tracked` to record the edit as Overleaf tracked changes <!-- md:version 0.1.2 --> |
 
 Exactly one of `content` and `localPath` must be given. Returns the new `revision`, `protocol`,
 `trackChangesActive`, `writeMode`, and `recoveredAfterTimeout: true` when the write was confirmed
@@ -252,6 +272,8 @@ History-OT documents are not affected.
 
 ### `create_file`
 
+<!-- md:version 0.1.0 -->
+
 Create a text document, optionally with initial content.
 
 | Parameter | Required | Meaning |
@@ -259,7 +281,7 @@ Create a text document, optionally with initial content.
 | `projectId` | yes | Project id |
 | `filePath` | yes | Path of the new document; parent folders must exist |
 | `content` | no | Initial text |
-| `writeMode` | no | `untracked` (default) or `tracked`; tracked requires non-empty `content` |
+| `writeMode` | no | `untracked` (default) or `tracked`; tracked requires non-empty `content` <!-- md:version 0.1.2 --> |
 
 Returns the document's `revision`, `protocol`, `trackChangesActive`, and `writeMode`, the same
 fields as `write_file`, with `recoveredAfterTimeout: true` when the initial content's write was
@@ -276,6 +298,8 @@ document was created, that refusal included, the error keeps its code and its `d
 read it with `read_file` and write the content with `write_file`.
 
 ### `manage_entity` <small>destructive</small>
+
+<!-- md:version 0.1.0 -->
 
 Create a folder, or rename, move, or delete an existing document, file, or folder.
 
@@ -301,6 +325,8 @@ Names are compared exactly, as Overleaf compares them.
 
 ### `upload_file` <small>destructive</small>
 
+<!-- md:version 0.1.0 -->
+
 Upload a local file into a project folder.
 
 | Parameter | Required | Meaning |
@@ -308,10 +334,10 @@ Upload a local file into a project folder.
 | `projectId` | yes | Project id |
 | `localPath` | yes | Local file to upload |
 | `destinationFolderPath` | no | Target folder; default `""`, the project root |
-| `destinationName` | no | Name to store the file under; defaults to the local file name |
-| `overwrite` | no | `true` allows replacing a binary file at the path; `false` refuses to replace anything. Omitted, replacing a binary needs `expectedHash`; a document is governed by `uncheckedDocumentReplace` |
-| `expectedHash` | no | The `hash` `get_project_tree` reported for the binary file being replaced, 40 lowercase hex characters |
-| `uncheckedDocumentReplace` | no | Allow replacing a text document, which has no revision check |
+| `destinationName` | no | Name to store the file under; defaults to the local file name <!-- md:version 0.1.3 --> |
+| `overwrite` | no | `true` allows replacing a binary file at the path; `false` refuses to replace anything. Omitted, replacing a binary needs `expectedHash`; a document is governed by `uncheckedDocumentReplace` <!-- md:version 0.5.0 --> |
+| `expectedHash` | no | The `hash` `get_project_tree` reported for the binary file being replaced, 40 lowercase hex characters <!-- md:version 0.5.0 --> |
+| `uncheckedDocumentReplace` | no | Allow replacing a text document, which has no revision check <!-- md:version 0.5.0 --> |
 
 If an entity already exists at the destination path and the call asks for it to be replaced,
 Overleaf replaces it; otherwise a new entity is created. A text document replaced by a text document keeps its entity id. A replaced binary
@@ -360,14 +386,16 @@ and `untracked` otherwise: for a binary, a new file, or with track changes off.
 
 ### `batch_upload` <small>destructive</small>
 
+<!-- md:version 0.4.1 -->
+
 Upload a list of local files, each to its own project path, in one call.
 
 | Parameter | Required | Meaning |
 | --- | :---: | --- |
 | `projectId` | yes | Project id |
 | `files` | yes | 1 to 500 entries `{ localPath, destinationPath }`. `destinationPath` is the full project path, file name included, such as `figures/fig1.pdf` |
-| `onConflict` | no | What to do when a document or binary file is already at a destination path. `fail`, the default, refuses the whole call before anything is uploaded; `skip` leaves what is there alone and lists it under `skipped`; `overwrite` replaces a binary file, as `upload_file` with `overwrite: true` does |
-| `uncheckedDocumentReplace` | no | Allow replacing text documents, which has no revision check |
+| `onConflict` | no | What to do when a document or binary file is already at a destination path. `fail` <!-- md:version 0.6.0 -->, the default, refuses the whole call before anything is uploaded; `skip` leaves what is there alone and lists it under `skipped`; `overwrite` replaces a binary file, as `upload_file` with `overwrite: true` does |
+| `uncheckedDocumentReplace` | no | Allow replacing text documents, which has no revision check <!-- md:version 0.5.0 --> |
 | `stopOnError` | no | Stop at the first failure instead of continuing; default `false` |
 
 It is a composition of `upload_file` and `manage_entity`'s `create_folder`, like the
@@ -440,6 +468,8 @@ lines.
 
 ### `download_file` <small>destructive</small>
 
+<!-- md:version 0.1.0 -->
+
 Save one document or binary file to a local path. It changes nothing on Overleaf; it is annotated
 destructive, not read-only, because it writes a local file and can replace one.
 
@@ -448,7 +478,7 @@ destructive, not read-only, because it writes a local file and can replace one.
 | `projectId` | yes | Project id |
 | `filePath` | yes | Entity to download; folders are refused |
 | `localPath` | yes | Where to write it |
-| `overwrite` | no | Replace `localPath` if it exists; default `false` |
+| `overwrite` | no | Replace `localPath` if it exists; default `false` <!-- md:version 0.1.3 --> |
 
 Returns `bytes` and `localPath`, as it was given rather than resolved. Fails with
 `INVALID_ARGUMENT` when the local file exists and
@@ -467,6 +497,8 @@ downloaded. The same goes for a `localPath` that leads there through a symbolic 
 a `..` after one.
 
 ### `download_project_zip` <small>destructive</small>
+
+<!-- md:version 0.4.1 -->
 
 Save the whole project, sources and binaries, as one zip archive on the server's disk: the same
 archive as Overleaf's "Download as zip".
@@ -587,6 +619,8 @@ larger than 8 MB.
 
 ### `plan_sync` <small>read-only</small>
 
+<!-- md:version 0.4.0 -->
+
 Compare a local folder with a project folder and report what `sync_directory` would do. Nothing
 is changed.
 
@@ -618,6 +652,8 @@ Returns:
 
 ### `sync_directory` <small>destructive</small>
 
+<!-- md:version 0.4.0 -->
+
 Make a project folder match a local folder.
 
 | Parameter | Required | Meaning |
@@ -627,7 +663,7 @@ Make a project folder match a local folder.
 | `mode` | yes | `additive` uploads and writes only; `mirror` also deletes what exists only in the project |
 | `destinationFolderPath` | no | As for `plan_sync`; default `""` |
 | `planToken` | unless `unplanned` | From `plan_sync`, or from a partial `sync_directory` to resume it |
-| `unplanned` | no | `true` runs an additive sync without a `planToken` on purpose; refused with a `planToken` or in mirror mode |
+| `unplanned` | no | `true` runs an additive sync without a `planToken` on purpose; refused with a `planToken` or in mirror mode <!-- md:version 0.5.0 --> |
 | `confirmDeleteCount` | for `mirror` | The number of entries in `plan_sync`'s `remoteOnly`, each folder counting once |
 | `ignore` | no | As for `plan_sync`; must match the plan's when a `planToken` is given |
 | `writeMode` | no | `untracked` (default) or `tracked` |
@@ -695,6 +731,8 @@ changes; plan again before resuming.
 
 ### `delete_entities` <small>destructive</small>
 
+<!-- md:version 0.4.0 -->
+
 Delete several documents, files, or folders in one call.
 
 | Parameter | Required | Meaning |
@@ -723,6 +761,8 @@ by a comment. In the same way, `text\\section{X}` is a line break followed by th
 decides.
 
 ### Documents split across files
+
+<!-- md:version 0.9.0 -->
 
 `get_full_document` flattens a document the way `latexpand` does, and the three section tools
 work on that flattened text when called with `followIncludes: true`. These directives are
@@ -768,6 +808,8 @@ and verbatim text file by file, so such a comment never hides a heading after th
 
 ### `get_full_document` <small>read-only</small>
 
+<!-- md:version 0.9.0 -->
+
 Read a document with every file it includes put in place of its include directive.
 
 | Parameter | Required | Meaning |
@@ -790,13 +832,15 @@ it was read with.
 
 ### `get_sections` <small>read-only</small>
 
+<!-- md:version 0.1.0 -->
+
 Parse the section headings of one file, or of a document across its included files.
 
 | Parameter | Required | Meaning |
 | --- | :---: | --- |
 | `projectId` | yes | Project id |
 | `filePath` | yes | Document to parse; with `followIncludes`, the document to start from |
-| `followIncludes` | no | Follow include directives as `get_full_document` does; default `false` |
+| `followIncludes` | no | Follow include directives as `get_full_document` does; default `false` <!-- md:version 0.9.0 --> |
 
 Returns `sections`, `revision` (that of `filePath`), and `singleFileOnly`. Each section has an
 `id` to pass to the other two section tools, its `index` (its position among the headings, from
@@ -823,6 +867,8 @@ of no section.
 
 ### `get_section_content` <small>read-only</small>
 
+<!-- md:version 0.1.0 -->
+
 Read one section's body.
 
 | Parameter | Required | Meaning |
@@ -830,7 +876,7 @@ Read one section's body.
 | `projectId` | yes | Project id |
 | `filePath` | yes | Document; with `followIncludes`, the one `get_sections` started from |
 | `sectionId` | yes | From `get_sections` |
-| `followIncludes` | no | Pass `true` for an id from `get_sections` with `followIncludes: true`; default `false` |
+| `followIncludes` | no | Pass `true` for an id from `get_sections` with `followIncludes: true`; default `false` <!-- md:version 0.9.0 --> |
 
 Returns `content` (the body text), the matching `section` record, and the `revision` of the file
 the section is in. A section's body runs from the line after its heading to the next heading at
@@ -846,6 +892,8 @@ so a body read in one mode and written in the other could drop or repeat an incl
 
 ### `write_section` <small>destructive</small>
 
+<!-- md:version 0.1.0 -->
+
 Replace one section's body with a revision-checked write. `content` replaces the whole body as
 `get_section_content` returns it, including nested subsections and, for the last section,
 everything up to the end of the file such as `\end{document}`. Read the body with
@@ -859,8 +907,8 @@ that the next heading starts its own line.
 | `revision` | yes | From `get_sections`, `get_section_content`, or `read_file`; with `followIncludes`, the section's `revision` |
 | `sectionId` | yes | Section to replace |
 | `content` | yes | New body |
-| `writeMode` | no | `untracked` (default) or `tracked` |
-| `followIncludes` | no | Pass `true` for an id from `get_sections` with `followIncludes: true`; default `false` |
+| `writeMode` | no | `untracked` (default) or `tracked` <!-- md:version 0.1.2 --> |
+| `followIncludes` | no | Pass `true` for an id from `get_sections` with `followIncludes: true`; default `false` <!-- md:version 0.9.0 --> |
 
 Returns the same fields as `write_file`. Fails with `REVISION_CONFLICT` if the document changed.
 The write follows `write_file`'s rules, including the refusal of content that adds a character
@@ -881,6 +929,8 @@ files with `write_file` instead.
 
 ### `compile_project`
 
+<!-- md:version 0.1.0 -->
+
 Compile the project and report on the build from its logs.
 
 | Parameter | Required | Meaning |
@@ -888,8 +938,8 @@ Compile the project and report on the build from its logs.
 | `projectId` | yes | Project id |
 | `rootFilePath` | no | Document to compile for this call only. Omitted, the root document configured in Overleaf is used, the same one the web editor's Recompile button builds |
 | `timeoutMs` | no | How long to wait, 1 second to 15 minutes; default 120 seconds |
-| `stopOnFirstError` | no | Stop at the first LaTeX error, for a short log holding the one error that matters |
-| `draft` | no | Draft mode: images become boxes, for faster text-only builds |
+| `stopOnFirstError` | no | Stop at the first LaTeX error, for a short log holding the one error that matters <!-- md:version 0.6.0 --> |
+| `draft` | no | Draft mode: images become boxes, for faster text-only builds <!-- md:version 0.6.0 --> |
 
 Check `summary.builtCleanly`, not `status`. Overleaf compiles in nonstopmode and reports `success`
 whenever a PDF came out, even when LaTeX hit errors on the way. `builtCleanly` is `true` only when
@@ -942,6 +992,8 @@ allowance; `timeoutMs` bounds only the wait.
 
 ### `stop_compile` <small>destructive</small>
 
+<!-- md:version 0.1.0 -->
+
 Stop the active compile for a project.
 
 | Parameter | Required | Meaning |
@@ -951,6 +1003,8 @@ Stop the active compile for a project.
 Returns `stopped: true`.
 
 ### `get_compile_log` <small>read-only</small>
+
+<!-- md:version 0.6.0 -->
 
 Read a build's LaTeX or BibTeX log without compiling again.
 
@@ -978,6 +1032,8 @@ written, so its `.blg` can still be one left over from an earlier build.
 
 ### `download_compile_output` <small>destructive</small>
 
+<!-- md:version 0.6.0 -->
+
 Save a build's PDF, or another output file, to a local path on the server's disk.
 
 | Parameter | Required | Meaning |
@@ -1002,6 +1058,8 @@ an earlier build is `NOT_FOUND`, like any file the build did not produce. Return
 
 ### Compile output resources
 
+<!-- md:version 0.6.0 -->
+
 The server also offers two read-only MCP resources for the latest build of a project in this
 process: `overleaf://project/{projectId}/output/output.log` (text, the first 1 MB) and
 `overleaf://project/{projectId}/output/output.pdf` (a PDF of at most 16 MB; use
@@ -1014,6 +1072,8 @@ Review comments and tracked changes need an Overleaf deployment and plan that su
 Positions use 1-based lines and UTF-16 columns.
 
 ### `list_comments` <small>read-only</small>
+
+<!-- md:version 0.1.0 -->
 
 List comment threads, resolving their document positions lazily.
 
@@ -1033,6 +1093,8 @@ project-wide range index and no `filePath` was given, the result has `positionsU
 rather than scanning every document.
 
 ### `reply_to_comment`
+
+<!-- md:version 0.1.0 -->
 
 Reply in an existing thread.
 
@@ -1054,6 +1116,8 @@ reply is posted twice. If Overleaf accepted the reply but it cannot be singled o
 back, the call fails with `OUTCOME_UNKNOWN`; do not retry it.
 
 ### `add_comment`
+
+<!-- md:version 0.1.0 -->
 
 Create a thread anchored to exact text.
 
@@ -1079,6 +1143,8 @@ An attachment Overleaf acknowledged is never removed.
 
 ### `set_comment_status` <small>destructive</small>
 
+<!-- md:version 0.1.0 -->
+
 Resolve or reopen a thread.
 
 | Parameter | Required | Meaning |
@@ -1101,6 +1167,8 @@ appeared, and `OUTCOME_UNKNOWN` when it cannot be observed, or when Overleaf acc
 but the requested status was not seen.
 
 ### `list_tracked_changes` <small>read-only</small>
+
+<!-- md:version 0.8.0 -->
 
 List tracked changes (suggestions) and where they are.
 
@@ -1134,6 +1202,8 @@ document is edited, and history-OT ids are made up by this server from the chang
 only with the revision they were listed with, so list again before deciding.
 
 ### `manage_tracked_changes` <small>destructive</small>
+
+<!-- md:version 0.8.0 -->
 
 Accept or reject tracked changes in one document.
 
@@ -1177,6 +1247,8 @@ Returns `action`, `filePath`, `changeIds`, the resulting `revision` and `protoco
 ## History
 
 ### `monitor_project_history` <small>read-only</small>
+
+<!-- md:version 0.1.2 -->
 
 Poll one recent window of project history.
 

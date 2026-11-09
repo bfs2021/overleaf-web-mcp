@@ -9,6 +9,17 @@ format, output framing, and exit codes; the `overleaf-web-mcp/core` surface the
 is announced at least one minor version ahead with both names working, and every change is listed
 below. Before 1.0.0, a minor or patch release could change them, and each such change is listed.
 
+## [1.0.1] - Unreleased
+
+### Documentation
+
+- **Version tags.** Every tool, parameter or value added after its tool, command, environment
+  variable, error code, and stable SDK export on the
+  [documentation site](https://mhmdaskari.github.io/overleaf-web-mcp/) now shows the release that
+  introduced it, and a new
+  [Version history](https://mhmdaskari.github.io/overleaf-web-mcp/versions/) page lists what each
+  release added to the MCP server, the command line, and the SDK.
+
 ## [1.0.0] - 2026-11-09
 
 The first stable release. Failures are easier to read and act on: a refused project join says

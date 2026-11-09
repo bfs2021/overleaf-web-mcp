@@ -61,6 +61,17 @@ overleaf-web-mcp tracked-changes reject <projectId> <path> --revision <r> --chan
 `serve`, `login`, `keepalive`, and `--help` are the server and session commands; `serve` is the
 default when no command is given. Everything else is an **operation command**.
 
+| Command | What it does | Since |
+| --- | --- | --- |
+| `serve` | Start the MCP stdio server | <!-- md:version 0.1.0 --> |
+| `login` | Save an authenticated Overleaf session from a browser sign-in | <!-- md:version 0.1.0 --> |
+| `keepalive` | Refresh the saved session so it does not expire | <!-- md:version 0.3.0 --> |
+| `--help` | Show the help | <!-- md:version 0.1.0 --> |
+| `call` | Run any operation with a JSON request | <!-- md:version 0.7.0 --> |
+| `schema` | Print an operation's input or output JSON Schema | <!-- md:version 0.7.0 --> |
+| `capabilities` | List operations, effects, the access policy, and exit codes | <!-- md:version 0.7.0 --> |
+| `doctor` | Check, read-only, that the session, Overleaf, and a project socket work | <!-- md:version 1.0.0 --> |
+
 `call <tool_name>` reaches every operation; the names are those in the
 [tool reference](tools.md). `schema` and `capabilities` describe the operations without calling
 them, and `doctor` checks this install against Overleaf. The rest are shorthand: each only builds a tool's input, and its result, errors, and exit
@@ -68,22 +79,22 @@ code are those of `call <tool>` with the same input. Anything a shorthand does n
 `timeoutMs` on a compile, goes through `call`. `--help` or `-h` anywhere in an operation command
 prints the help and exits 0.
 
-| Command | Tool | Arguments and flags become |
-| --- | --- | --- |
-| `projects list` | `list_projects` | `--query` `query`, `--limit` `limit`, `--sort` `sort`, `--include-archived` `includeArchived: true`, `--include-trashed` `includeTrashed: true` |
-| `tree` | `get_project_tree` | `<projectId>` `projectId` |
-| `files read` | `read_file` | `<path>` `filePath` |
-| `files write` | `write_file` | `<path>` `filePath`, `--revision` `revision`, `--content-file` `localPath`, `--stdin` `content`, `--tracked` `writeMode: "tracked"` |
-| `files download` | `download_file` | `<path>` `filePath`, `<localPath>` `localPath`, `--overwrite` `overwrite: true` |
-| `sync plan` | `plan_sync` | `<localFolder>` `localFolderPath`, `--destination` `destinationFolderPath`, each `--ignore` one `ignore` pattern, `--verbose` `verbose: true` |
-| `sync apply` | `sync_directory` | as `sync plan`, plus `--mode` `mode`, `--plan-token` `planToken`, `--unplanned` `unplanned: true`, `--confirm-delete-count` `confirmDeleteCount`, `--tracked` `writeMode: "tracked"`, `--stop-on-error` `stopOnError: true` |
-| `compile run` | `compile_project` | `--root` `rootFilePath`, `--draft` `draft: true`, `--stop-on-first-error` `stopOnFirstError: true`; `--download` and `--overwrite` are [below](#compiling-across-processes) |
-| `compile log` | `get_compile_log` | `--build-ref` `buildRef`, `--tail` `tail`, `--kind` `kind`, `--errors-only` `format: "errors-only"` |
-| `compile download` | `download_compile_output` | `<localPath>` `localPath`, `--build-ref` `buildRef`, `--file` `file`, `--overwrite` `overwrite: true` |
-| `comments list` | `list_comments` | `--status` `status`, `--file` `filePath`, `--author` `author` |
-| `tracked-changes list` | `list_tracked_changes` | `--file` `filePath`, `--type` `type`, `--author` `authorId`, `--limit` `limit`, `--excerpt-chars` `excerptChars` |
-| `tracked-changes accept` | `manage_tracked_changes` | `action: "accept"`, `<path>` `filePath`, `--revision` `revision`, each `--change` one `changeIds` entry, `--confirm-count` `confirmCount` |
-| `tracked-changes reject` | `manage_tracked_changes` | as `tracked-changes accept`, with `action: "reject"` |
+| Command | Tool | Arguments and flags become | Since |
+| --- | --- | --- | --- |
+| `projects list` | `list_projects` | `--query` `query`, `--limit` `limit`, `--sort` `sort`, `--include-archived` `includeArchived: true`, `--include-trashed` `includeTrashed: true` | <!-- md:version 0.7.0 --> |
+| `tree` | `get_project_tree` | `<projectId>` `projectId` | <!-- md:version 0.7.0 --> |
+| `files read` | `read_file` | `<path>` `filePath` | <!-- md:version 0.7.0 --> |
+| `files write` | `write_file` | `<path>` `filePath`, `--revision` `revision`, `--content-file` `localPath`, `--stdin` `content`, `--tracked` `writeMode: "tracked"` | <!-- md:version 0.7.0 --> |
+| `files download` | `download_file` | `<path>` `filePath`, `<localPath>` `localPath`, `--overwrite` `overwrite: true` | <!-- md:version 0.7.0 --> |
+| `sync plan` | `plan_sync` | `<localFolder>` `localFolderPath`, `--destination` `destinationFolderPath`, each `--ignore` one `ignore` pattern, `--verbose` `verbose: true` | <!-- md:version 0.7.0 --> |
+| `sync apply` | `sync_directory` | as `sync plan`, plus `--mode` `mode`, `--plan-token` `planToken`, `--unplanned` `unplanned: true`, `--confirm-delete-count` `confirmDeleteCount`, `--tracked` `writeMode: "tracked"`, `--stop-on-error` `stopOnError: true` | <!-- md:version 0.7.0 --> |
+| `compile run` | `compile_project` | `--root` `rootFilePath`, `--draft` `draft: true`, `--stop-on-first-error` `stopOnFirstError: true`; `--download` and `--overwrite` are [below](#compiling-across-processes) | <!-- md:version 0.7.0 --> |
+| `compile log` | `get_compile_log` | `--build-ref` `buildRef`, `--tail` `tail`, `--kind` `kind`, `--errors-only` `format: "errors-only"` | <!-- md:version 0.7.0 --> |
+| `compile download` | `download_compile_output` | `<localPath>` `localPath`, `--build-ref` `buildRef`, `--file` `file`, `--overwrite` `overwrite: true` | <!-- md:version 0.7.0 --> |
+| `comments list` | `list_comments` | `--status` `status`, `--file` `filePath`, `--author` `author` | <!-- md:version 0.7.0 --> |
+| `tracked-changes list` | `list_tracked_changes` | `--file` `filePath`, `--type` `type`, `--author` `authorId`, `--limit` `limit`, `--excerpt-chars` `excerptChars` | <!-- md:version 0.8.0 --> |
+| `tracked-changes accept` | `manage_tracked_changes` | `action: "accept"`, `<path>` `filePath`, `--revision` `revision`, each `--change` one `changeIds` entry, `--confirm-count` `confirmCount` | <!-- md:version 0.8.0 --> |
+| `tracked-changes reject` | `manage_tracked_changes` | as `tracked-changes accept`, with `action: "reject"` | <!-- md:version 0.8.0 --> |
 
 A few rules the table does not show:
 
@@ -173,6 +184,8 @@ are listed in the [safety model](safety.md#error-codes).
 
 ### Progress
 
+<!-- md:version 0.7.0 -->
+
 With `--progress`, on `call`, `sync plan`, or `sync apply`, operations that report progress write
 one JSON line to stderr per step:
 
@@ -193,6 +206,8 @@ These commands exit 1 on any failure, with the error as one JSON line on stderr;
 unknown command. The exit codes below are for operation commands only.
 
 ## Exit codes
+
+<!-- md:version 0.7.0 -->
 
 | Exit | Meaning | Error codes |
 | :---: | --- | --- |
@@ -272,6 +287,8 @@ without compiling again. A compile that fails is that compile's error, and nothi
 
 ## Describing the operations
 
+<!-- md:version 0.7.0 -->
+
 `schema <tool> --input` and `schema <tool> --output` print a tool's JSON Schema exactly as the MCP
 server's `tools/list` advertises it: draft 2020-12, with an object at the root. A tool without
 parameters has the input schema `{ "type": "object", "properties": {} }`. The input schemas do
@@ -287,7 +304,7 @@ not forbid other keys; the command line refuses them anyway, as [above](#input-i
 - `policy`: `{ projectsRestricted, effectsRestricted, localReadRestricted, localWriteRestricted }`,
   which [access policy](configuration.md#access-policy) variables are set.
 - `project`: `{ projectId, allowedByPolicy, accessLevel, archived, trashed }`.
-- `backend`: what the backend behind every operation can do, `{ kind, liveRevisions,
+- `backend` <!-- md:version 1.0.0 -->: what the backend behind every operation can do, `{ kind, liveRevisions,
   trackedWrites, review: { list, decide }, comments, compile, history }`. The only `kind` is
   `"web-session"`, the saved browser session. `review.decide` says whether this account can
   accept or reject tracked changes in the project: `false` when the project's owner's plan or the
@@ -306,6 +323,8 @@ policy every other command would refuse, such as a root folder that does not exi
 with `INVALID_ARGUMENT` and exit 2.
 
 ## Checking an install
+
+<!-- md:version 1.0.0 -->
 
 `doctor [projectId]` checks, read-only, that this install works against its Overleaf, and prints
 `{ version, checks: [{ id, status, code? }] }`. It names no project, file, or person: only check
@@ -460,6 +479,8 @@ overleaf-web-mcp call reply_to_comment --request reply.json
 ```
 
 ## Agent Skills
+
+<!-- md:version 0.7.0 -->
 
 The package ships three Agent Skills in its `skills/` folder, each a folder with a `SKILL.md` in
 the open [Agent Skills](https://agentskills.io) format. A skill tells an agent working in a shell
