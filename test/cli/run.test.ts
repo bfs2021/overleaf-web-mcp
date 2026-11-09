@@ -855,6 +855,24 @@ describe('capabilities', () => {
       trashed: 'unknown',
     })
     expect(report.errorCodes).toEqual([...ERROR_CODES])
+    expect(report.backend).toEqual({
+      kind: 'web-session',
+      liveRevisions: true,
+      trackedWrites: true,
+      review: { list: true, decide: 'unknown' },
+      comments: true,
+      compile: true,
+      history: true,
+    })
+  })
+
+  test.each([true, false])('reports review.decide %s from the joined project', async decide => {
+    const fake = fakeServiceRuntime()
+    fake.reviewSupport.mockResolvedValueOnce({ decide })
+    const run = await cli(['capabilities', 'mine'], { runtime: fake })
+    expect(run.exitCode).toBe(0)
+    expect(fake.reviewSupport).toHaveBeenCalledWith('mine')
+    expect(capabilities(run).report.backend.review).toEqual({ list: true, decide })
   })
 
   test('reports the effects OVERLEAF_ALLOWED_EFFECTS refuses', async () => {
@@ -882,6 +900,8 @@ describe('capabilities', () => {
     expect(run.exitCode).toBe(0)
     expect(run.createRuntime).not.toHaveBeenCalled()
     expect(fake.account.findProject).not.toHaveBeenCalled()
+    expect(fake.reviewSupport).not.toHaveBeenCalled()
+    expect(capabilities(run).report.backend.review.decide).toBe('unknown')
     expect(capabilities(run).report.project).toEqual({
       projectId: 'other',
       allowedByPolicy: false,

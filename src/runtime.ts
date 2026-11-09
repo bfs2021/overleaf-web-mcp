@@ -16,7 +16,7 @@ import { HistoryApi } from './overleaf/history.js'
 import { ProjectsApi } from './overleaf/projects.js'
 import { SectionsApi } from './overleaf/sections-api.js'
 import { SyncApi } from './overleaf/sync.js'
-import { TrackedChangesApi } from './overleaf/tracked-changes.js'
+import { canDecideTrackedChanges, TrackedChangesApi } from './overleaf/tracked-changes.js'
 import { resolveProjectPath, type EntityType } from './overleaf/tree.js'
 import { ProjectConnectionCache } from './protocol/connection-cache.js'
 import { openProjectConnection } from './protocol/connect.js'
@@ -355,6 +355,20 @@ export class OverleafRuntime implements OverleafServiceRuntime {
       socketPresenceNotice:
         'An active cached project socket can make this account appear online to collaborators until the idle timeout.',
     }
+  }
+
+  /**
+   * What the web-session backend can do in one project, read from a fresh `joinProject`: whether
+   * this account can decide tracked changes there. Joining shows the account online to
+   * collaborators until the socket idles out.
+   */
+  async reviewSupport(projectId: string): Promise<{ decide: boolean }> {
+    this.policy.assertProject(projectId)
+    this.policy.assertEffect('overleaf-read')
+    await this.connections.invalidate(projectId)
+    return await this.connections.withConnection(projectId, async connection =>
+      Promise.resolve({ decide: canDecideTrackedChanges(connection) })
+    )
   }
 
   async createFile(

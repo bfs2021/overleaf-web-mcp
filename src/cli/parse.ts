@@ -12,6 +12,7 @@ export type OperationCommand =
   | { kind: 'call'; tool: OperationName; request: RequestSource; progress: boolean }
   | { kind: 'schema'; tool: OperationName; io: 'input' | 'output' }
   | { kind: 'capabilities'; projectId?: string }
+  | { kind: 'doctor'; projectId?: string }
   | ({ kind: 'alias'; command: string } & AliasCall)
 
 /** `legacy` hands the arguments, untouched, to `parseCliCommand`: serve, login, keepalive, and help. */
@@ -113,6 +114,13 @@ function parseCapabilities(args: string[]): OperationCommand {
   return positionals[0] === undefined ? { kind: 'capabilities' } : { kind: 'capabilities', projectId: positionals[0] }
 }
 
+function parseDoctor(args: string[]): OperationCommand {
+  const { values, positionals } = parse(args, {}, 'doctor')
+  if (values.help === true) return { kind: 'help' }
+  if (positionals.length > 1) throw usageError('doctor takes at most one projectId.')
+  return positionals[0] === undefined ? { kind: 'doctor' } : { kind: 'doctor', projectId: positionals[0] }
+}
+
 /**
  * Reads the command line of an operation command. Any other first word (serve, login, keepalive,
  * help, or an unknown command) is left to `parseCliCommand`, which keeps its own behaviour.
@@ -127,6 +135,7 @@ export function parseCommandLine(argv: string[]): ParsedCommandLine {
   if (first === 'call') return parseCall(argv.slice(1))
   if (first === 'schema') return parseSchema(argv.slice(1))
   if (first === 'capabilities') return parseCapabilities(argv.slice(1))
+  if (first === 'doctor') return parseDoctor(argv.slice(1))
   const alias = findAlias(argv)
   if (alias === undefined) {
     const known = ALIASES.filter(candidate => candidate.words[0] === first).map(candidate => candidate.words.join(' '))

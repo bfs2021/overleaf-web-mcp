@@ -220,6 +220,16 @@ function assertCanDecide(connection: TrackedChangesConnection): void {
   }
 }
 
+/** Whether this account can accept or reject tracked changes in the joined project, as checked before a decision. */
+export function canDecideTrackedChanges(connection: TrackedChangesConnection): boolean {
+  try {
+    assertCanDecide(connection)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Refuses ids that name no live change, and a decision that would leave an overlapping change behind. */
 function assertDecidable(changes: readonly TrackedChange[], changeIds: readonly string[]): void {
   const missing = missingChangeIds(changes, changeIds)

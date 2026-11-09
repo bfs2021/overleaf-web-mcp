@@ -40,6 +40,7 @@ overleaf-web-mcp --help
 overleaf-web-mcp call <tool_name> [--request <file> | --request - | --json <object>] [--progress]
 overleaf-web-mcp schema <tool_name> (--input | --output)
 overleaf-web-mcp capabilities [projectId]
+overleaf-web-mcp doctor [projectId]
 
 overleaf-web-mcp projects list [--query <q>] [--limit <n>] [--sort lastUpdated|name] [--include-archived] [--include-trashed]
 overleaf-web-mcp tree <projectId>
@@ -62,7 +63,7 @@ default when no command is given. Everything else is an **operation command**.
 
 `call <tool_name>` reaches every operation; the names are those in the
 [tool reference](tools.md). `schema` and `capabilities` describe the operations without calling
-them. The rest are shorthand: each only builds a tool's input, and its result, errors, and exit
+them, and `doctor` checks this install against Overleaf. The rest are shorthand: each only builds a tool's input, and its result, errors, and exit
 code are those of `call <tool>` with the same input. Anything a shorthand does not cover, such as
 `timeoutMs` on a compile, goes through `call`. `--help` or `-h` anywhere in an operation command
 prints the help and exits 0.
@@ -283,21 +284,56 @@ not forbid other keys; the command line refuses them anyway, as [above](#input-i
 - `policy`: `{ projectsRestricted, effectsRestricted, localReadRestricted, localWriteRestricted }`,
   which [access policy](configuration.md#access-policy) variables are set.
 - `project`: `{ projectId, allowedByPolicy, accessLevel, archived, trashed }`.
+- `backend`: what the backend behind every operation can do, `{ kind, liveRevisions,
+  trackedWrites, review: { list, decide }, comments, compile, history }`. The only `kind` is
+  `"web-session"`, the saved browser session. `review.decide` says whether this account can
+  accept or reject tracked changes in the project: `false` when the project's owner's plan or the
+  deployment turns track changes off, or the account is neither owner nor editor, in which case
+  `manage_tracked_changes` fails with `REVIEW_UNSUPPORTED` or `PERMISSION_DENIED` before sending
+  anything. It is `"unknown"` without a `projectId`.
 - `errorCodes` and `exitCodes`: every error code, and the exit-code table as
   `{ exitCode, meaning, errorCodes }`.
 
 Without a `projectId`, every `project` field is `"unknown"` and no session is opened. With one
 outside `OVERLEAF_ALLOWED_PROJECTS`, `allowedByPolicy` is `false`, the rest `"unknown"`, and
-nothing is sent. Otherwise one project-list request fills in the rest, and a project the account
-cannot see is `NOT_FOUND`. The access policy is resolved first, as every command resolves it, so a
+nothing is sent. Otherwise one project-list request and a join of the project's socket fill in the
+rest, and a project the account cannot see is `NOT_FOUND`. The join shows the account online to
+collaborators until the command exits. The access policy is resolved first, as every command resolves it, so a
 policy every other command would refuse, such as a root folder that does not exist, fails here too
 with `INVALID_ARGUMENT` and exit 2.
+
+## Checking an install
+
+`doctor [projectId]` checks, read-only, that this install works against its Overleaf, and prints
+`{ version, checks: [{ id, status, code? }] }`. It names no project, file, or person: only check
+ids, statuses, and error codes. The checks, in order:
+
+| Check | What passes |
+| --- | --- |
+| `config` | The configuration and the access policy resolve, and the policy allows reading from Overleaf. |
+| `session.cookieJar` | A saved session exists and loads. |
+| `bootstrap.page` | `GET /project` answers without sending you to the login page. |
+| `bootstrap.csrfToken`, `bootstrap.userId` | The project page carries the token and the signed-in user this release reads. |
+| `api.projects` | The project list answers in the shape this release reads. |
+| `policy.project` | The `projectId` is allowed by `OVERLEAF_ALLOWED_PROJECTS`. |
+| `socket.handshake` | The Socket.IO handshake answers and offers the websocket transport. |
+| `joinProject`, `joinProject.protocolVersion` | The project joins, in a collaboration protocol version this release speaks (`OVERLEAF_PROTOCOL_VERSIONS`). |
+| `joinDoc.rootDocument`, `leaveDoc.rootDocument` | The root document joins and is left again. |
+
+Each `status` is `ok`, `failed` (with the error `code`), `unsupported` (Overleaf answered in a
+shape or protocol this release does not understand, `code: "PROTOCOL_UNSUPPORTED"`), or `skipped`
+(an earlier check failed, no `projectId` was given, or the project has no root document). Without
+a `projectId` every check from `policy.project` on is skipped and no project socket is opened.
+`doctor` exits 0 when no check failed or was unsupported, and 1 otherwise; a `projectId` that is
+not a project id exits 2. It never writes anything: no OT update, upload, or other change is sent.
+Each request is tried once, so a passing failure shows as it is. Checking a project joins its
+socket, which shows the account online to collaborators until `doctor` exits.
 
 ## Sessions, presence, and request volume
 
 Each command is its own session. It loads the saved session, makes one `GET /project` to check
 it, may open a project connection, and closes everything before it exits; `schema`, and
-`capabilities` without a project id, open none. While it runs, the
+`capabilities` and `doctor` without a project id, open none. While it runs, the
 account may appear online to collaborators in the editor. Nothing is kept between commands, so a
 shell loop over files pays that start-up for every file and multiplies the requests Overleaf
 sees. For many files, use one command:

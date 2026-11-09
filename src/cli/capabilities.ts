@@ -34,12 +34,26 @@ export interface CapabilitiesReport {
     archived: boolean | Unknown
     trashed: boolean | Unknown
   }
+  /**
+   * What the backend behind every operation can do. The only backend is the saved web session;
+   * `review.decide` needs a projectId and is "unknown" without one or when the policy refused it.
+   */
+  backend: {
+    kind: 'web-session'
+    liveRevisions: boolean
+    trackedWrites: boolean
+    review: { list: boolean; decide: boolean | Unknown }
+    comments: boolean
+    compile: boolean
+    history: boolean
+  }
   errorCodes: readonly string[]
   exitCodes: typeof EXIT_CODES
 }
 
 /** What the project lookup found: the project, or that the policy refused it before any request. */
-export type ProjectLookup = { projectId: string; summary: ProjectSummary } | { projectId: string; denied: true }
+export type ProjectLookup =
+  { projectId: string; summary: ProjectSummary; review: { decide: boolean } } | { projectId: string; denied: true }
 
 /**
  * Describes what this install can do from its contracts and its configuration alone; only the
@@ -89,6 +103,18 @@ export function buildCapabilities(config: AppConfig, lookup?: ProjectLookup): Ca
               archived: lookup.summary.archived,
               trashed: lookup.summary.trashed,
             },
+    backend: {
+      kind: 'web-session',
+      liveRevisions: true,
+      trackedWrites: true,
+      review: {
+        list: true,
+        decide: lookup === undefined || 'denied' in lookup ? 'unknown' : lookup.review.decide,
+      },
+      comments: true,
+      compile: true,
+      history: true,
+    },
     errorCodes: ERROR_CODES,
     exitCodes: EXIT_CODES,
   }

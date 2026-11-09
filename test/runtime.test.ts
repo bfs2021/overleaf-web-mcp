@@ -103,6 +103,32 @@ describe('runtime bootstrap', () => {
     ).rejects.toMatchObject({ code })
   })
 
+  test.each([
+    [{ trackChanges: false }, 'owner', false],
+    [{ trackChanges: true }, 'owner', true],
+    [{ trackChanges: true }, 'readOnly', false],
+    [undefined, 'readAndWrite', true],
+  ])('reviewSupport reads features %j and access %s from a fresh join', async (features, level, decide) => {
+    const config = await savedSessionConfig()
+    const close = vi.fn()
+    const runtime = await OverleafRuntime.create(config, {
+      fetcher: async () =>
+        await Promise.resolve(
+          new Response('<meta name="ol-csrfToken" content="csrf"><meta name="ol-user_id" content="user">')
+        ),
+      connectionFactory: async () =>
+        await Promise.resolve({
+          permissionsLevel: level,
+          project: features === undefined ? {} : { features },
+          closed: false,
+          close,
+        } as unknown as ProjectConnection),
+    })
+    await expect(runtime.reviewSupport('project')).resolves.toEqual({ decide })
+    await runtime.close()
+    expect(close).toHaveBeenCalled()
+  })
+
   test('still reports a redirect to /login as AUTH_EXPIRED', async () => {
     const config = await savedSessionConfig()
     const fetcher = async (): Promise<Response> => {

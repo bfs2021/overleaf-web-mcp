@@ -13,6 +13,7 @@ import type { AccountApi } from '../overleaf/account.js'
 import { OverleafRuntime } from '../runtime.js'
 import { createOverleafService } from '../service/operations.js'
 import { buildCapabilities, type ProjectLookup } from './capabilities.js'
+import { doctorExitCode, runDoctor, type DoctorDependencies } from './doctor.js'
 import { exitCodeForError, exitCodeForResult } from './exit-codes.js'
 import { operationJsonSchema } from './json-schema.js'
 import { parseCommandLine, type OperationCommand, type RequestSource } from './parse.js'
@@ -28,12 +29,15 @@ export interface CliIo {
 /** A runtime an operation command can run on and must close. */
 export type CliRuntime = OverleafServiceRuntime & {
   account: Pick<AccountApi, 'listProjects' | 'findProject'>
+  reviewSupport(projectId: string): Promise<{ decide: boolean }>
   close(): Promise<void>
 }
 
 export interface CliDependencies {
   env?: NodeJS.ProcessEnv
   createRuntime?: (config: AppConfig) => Promise<CliRuntime>
+  /** The transport `doctor` checks, replaced in tests. */
+  doctor?: DoctorDependencies
 }
 
 function json(value: unknown): string {
@@ -191,12 +195,12 @@ async function runCapabilities(
     } else {
       // The lookup is the project listing list_projects reads, so its failures exit as that read's would.
       run.operation = 'list_projects'
-      const summary = await withRuntime(
-        dependencies,
-        run,
-        async runtime => await runtime.account.findProject(projectId)
-      )
-      lookup = { projectId, summary }
+      lookup = await withRuntime(dependencies, run, async runtime => {
+        const summary = await runtime.account.findProject(projectId)
+        // Joining the project is a read too, and shows the account online until the socket idles out.
+        const review = await runtime.reviewSupport(projectId)
+        return { projectId, summary, review }
+      })
     }
   }
   io.stdout(json(buildCapabilities(config, lookup)))
@@ -224,6 +228,12 @@ export async function runOperationCommand(
         return 0
       case 'capabilities':
         return await runCapabilities(command.projectId, io, dependencies, run)
+      case 'doctor': {
+        if (command.projectId !== undefined) assertPathSafeId(command.projectId, 'projectId')
+        const report = await runDoctor(readConfig(dependencies.env), command.projectId, dependencies.doctor)
+        io.stdout(json(report))
+        return doctorExitCode(report)
+      }
       case 'call':
       case 'alias':
         return await runOperation(command, io, dependencies, run)

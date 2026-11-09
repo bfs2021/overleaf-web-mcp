@@ -19,6 +19,17 @@ each such change is listed below.
   `TRANSIENT_FAILURE`, `details.attempts`, `details.lastCode`, and, when known, `details.status`,
   `details.reason`, and `details.path`. No request that changes something is ever sent twice, and
   no read that timed out, was rate-limited, or was refused is retried.
+- **`overleaf-web-mcp doctor [projectId]`**, a command line check of an install, read-only:
+  the configuration and access policy, the saved session, the bootstrap page and its CSRF token
+  and user, the project list, and with a `projectId` the Socket.IO handshake, `joinProject` and
+  its protocol version, and a join and leave of the root document. It prints
+  `{ version, checks: [{ id, status, code? }] }` with `status` `ok`, `failed`, `unsupported`, or
+  `skipped`, names no project, file, or person, sends no update, and exits 1 when any check failed
+  or was unsupported. It is not an MCP tool.
+- **`backend` in the `capabilities` report**: `{ kind: "web-session", liveRevisions,
+  trackedWrites, review: { list, decide }, comments, compile, history }`. With a `projectId`,
+  `review.decide` says whether this account can accept or reject tracked changes there; without
+  one it is `"unknown"`. `capabilities <projectId>` now joins the project's socket to find out.
 - **`OVERLEAF_MIN_REQUEST_INTERVAL_MS`** (default 0, at most 60000) spaces the starts of REST
   requests from one process.
 - A network failure of a REST request is `REMOTE_ERROR` with `details.kind: "network"`, and a
