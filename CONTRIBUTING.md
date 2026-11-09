@@ -105,7 +105,7 @@ The rules that most often catch a first pull request:
    plus a short topic, for example `fix/compile-root-resolution`.
 2. Keep each pull request to one change. Commit subjects use a conventional prefix (`feat:`,
    `fix:`, `docs:`, `ci:`, `chore:`) and plain wording.
-3. Run every command under **Set up**, and `npm pack --dry-run` if you changed what is published.
+3. Run every command under **Set up**, and `npx tsx scripts/check-pack.ts` after a build if you changed what is published.
 4. Add a `CHANGELOG.md` entry for anything a user would notice, and update the documentation in
    `docs/` and the README when behaviour changes. Edit `ROADMAP.md` and `CHANGELOG.md` at the
    repository root; the documentation site includes them.

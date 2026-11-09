@@ -50,6 +50,25 @@ each such change is listed below.
   page with no signed-in user, or a redirect to `/login`, is still `AUTH_EXPIRED`.
 - The tool output schemas that list error codes include `TRANSIENT_FAILURE`.
 
+### Documentation
+
+- The README describes the security model (the saved session's permissions, stdout framing, what
+  errors never carry, retries, and the limits of the access policy), the Terms-of-Service
+  posture, what happens when Overleaf changes its private endpoints, and what Semantic Versioning
+  covers from 1.0.0.
+- The installation guide gains a compatibility section and points at `doctor` for
+  troubleshooting; the command line guide documents `doctor` and the `backend` report; the
+  configuration guide documents retries and pacing; the private API catalogue lists every
+  `connectionRejected` payload and the code it maps to.
+
+### Internal
+
+- The stdio tests drive the real server over piped streams with a 2025-11-25 client and a
+  2026-07-28 client, and check that each receives the instructions and that stdout carries only
+  JSON-RPC.
+- `scripts/check-pack.ts` checks the packed file list for the entry points, the skills, and the
+  license, and refuses sources, tests, and session files. CI and the publish workflow run it.
+
 ## [0.9.0] - 2026-11-07
 
 Multi-file documents. A manuscript split across `\input`, `\include`, `\subfile`, and `\import`

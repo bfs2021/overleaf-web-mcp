@@ -34,7 +34,7 @@ npm run lint         # eslint
 npm run format:check # prettier; npm run format rewrites the files
 npm test             # vitest, no network needed
 npm run build        # emits dist/
-npm pack --dry-run   # verifies the published file list, the three skills/*/SKILL.md included
+npx tsx scripts/check-pack.ts  # after a build: checks the published file list, the three skills/*/SKILL.md included
 ```
 
 CI runs all of these on Node 20 and 24 for every push and pull request. For the docs site,
@@ -140,7 +140,8 @@ CI runs all of these on Node 20 and 24 for every push and pull request. For the 
    `test/skills.test.ts`, which fails until it matches.
 2. Merge to `main` with CI green.
 3. Run the `Publish to npm` workflow on `main` with the version (`workflow_dispatch`). It checks
-   that the version matches `package.json` and has a `CHANGELOG.md` section, re-runs the checks,
+   that the version matches `package.json` and has a `CHANGELOG.md` section, re-runs the checks
+   and the packed file list check,
    publishes to npm with trusted publishing, lists the version in the MCP Registry from
    `server.json` with GitHub OIDC, then creates the `vX.Y.Z` tag and the GitHub Release with that
    section as its notes. Publishing a GitHub Release with tag `vX.Y.Z` by hand still
