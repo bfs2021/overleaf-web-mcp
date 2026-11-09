@@ -1,6 +1,7 @@
 import type { AppConfig } from './config.js'
 import type { OverleafServiceRuntime } from './contracts/service.js'
 import { asMcpError, AUTH_LOGIN_INSTRUCTION, McpError } from './core/errors.js'
+import { retryRead } from './core/retry.js'
 import { AccessPolicy } from './core/policy.js'
 import { parseBootstrapMeta, type BootstrapMeta } from './http/bootstrap.js'
 import { OverleafHttpClient } from './http/client.js'
@@ -67,6 +68,16 @@ async function createDocument(
       { retryable: false, details: { ...failure.details, created: true }, cause: error }
     )
   }
+}
+
+/**
+ * A project join that failed before Overleaf answered it, for a reason that passes: the socket
+ * closed, real-time failed, the handshake met a network failure or HTTP 5xx, or Overleaf asked for
+ * a retry. A refused, rate-limited, or timed-out join is not tried again.
+ */
+export function isTransientJoinFailure(error: McpError): boolean {
+  if (error.code === 'TRANSIENT_FAILURE') return true
+  return error.code === 'REMOTE_ERROR' && error.retryable
 }
 
 type Fetcher = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
@@ -157,6 +168,8 @@ export class OverleafRuntime implements OverleafServiceRuntime {
       baseUrl: config.baseUrl,
       jar: cookieStore.jar,
       defaultTimeoutMs: config.requestTimeoutMs,
+      readAttempts: config.readAttempts,
+      minRequestIntervalMs: config.minRequestIntervalMs,
       csrfToken: () => csrf.token,
       persistSetCookies: async (url, values) => await cookieStore.mergeSetCookies(url, values),
       ...(fetcher === undefined ? {} : { fetcher }),
@@ -166,6 +179,15 @@ export class OverleafRuntime implements OverleafServiceRuntime {
     try {
       const bootstrapResponse = await http.request('GET', '/project')
       bootstrap = parseBootstrapMeta(await bootstrapResponse.text())
+      // A signed-in page without a token is a page this release does not understand, not a lost
+      // session: logging in again would not change it.
+      if (!bootstrap.csrfToken && bootstrap.userId !== undefined) {
+        throw new McpError(
+          'PROTOCOL_UNSUPPORTED',
+          'Overleaf served a signed-in project page without the CSRF token this release reads.',
+          { details: { kind: 'response_shape', endpoint: 'GET /project' } }
+        )
+      }
       if (!bootstrap.csrfToken) {
         throw new McpError(
           'AUTH_EXPIRED',
@@ -179,20 +201,29 @@ export class OverleafRuntime implements OverleafServiceRuntime {
     csrf.token = bootstrap.csrfToken
 
     // Sockets are cached per project, while each document is freshly joined inside its queued call.
+    // Joining sends nothing to the project, so a join refused for a passing reason is a read to retry.
     const factory =
       dependencies.connectionFactory ??
       (async (projectId: string) =>
-        await openProjectConnection({
-          baseUrl: config.baseUrl,
-          projectId,
-          jar: cookieStore.jar,
-          supportedProtocolVersions: config.supportedProtocolVersions,
-          timeoutMs: config.requestTimeoutMs,
-          applyTimeoutMs: config.applyTimeoutMs,
-          ...(bootstrap.userId === undefined ? {} : { currentUserId: bootstrap.userId }),
-          ...(fetcher === undefined ? {} : { fetcher }),
-          ...(proxy === undefined ? {} : { webSocketAgent: proxy.webSocketAgent }),
-        }))
+        await retryRead(
+          async () =>
+            await openProjectConnection({
+              baseUrl: config.baseUrl,
+              projectId,
+              jar: cookieStore.jar,
+              supportedProtocolVersions: config.supportedProtocolVersions,
+              timeoutMs: config.requestTimeoutMs,
+              applyTimeoutMs: config.applyTimeoutMs,
+              ...(bootstrap.userId === undefined ? {} : { currentUserId: bootstrap.userId }),
+              ...(fetcher === undefined ? {} : { fetcher }),
+              ...(proxy === undefined ? {} : { webSocketAgent: proxy.webSocketAgent }),
+            }),
+          {
+            attempts: config.readAttempts,
+            isTransient: isTransientJoinFailure,
+            details: { event: 'joinProject' },
+          }
+        ))
     const connections = new ProjectConnectionCache<ProjectConnection>({
       capacity: config.socketCacheSize,
       idleTtlMs: config.socketIdleTtlMs,

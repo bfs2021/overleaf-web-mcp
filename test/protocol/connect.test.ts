@@ -94,6 +94,17 @@ describe('project socket bootstrap', () => {
       'join_rate_limited',
     ],
     [{ message: 'invalid session' }, 'AUTH_EXPIRED', false, 'invalid_session'],
+    // The payloads real-time's Router and WebApiManager emit, read in overleaf/overleaf.
+    [{ message: 'retry' }, 'TRANSIENT_FAILURE', true, 'retry'],
+    [{ message: 'not authorized' }, 'PERMISSION_DENIED', false, 'not_authorized'],
+    [{ message: 'project not found', code: 'ProjectNotFound' }, 'NOT_FOUND', false, 'project_not_found'],
+    [{ message: 'error' }, 'REMOTE_ERROR', true, 'connection_error'],
+    [{ message: 'Something went wrong in real-time service' }, 'REMOTE_ERROR', true, 'realtime_error'],
+    [{ message: 'missing/bad ?projectId=... query flag on handshake' }, 'INVALID_ARGUMENT', false, 'bad_project_id'],
+    [{ message: 'too many requests' }, 'RATE_LIMITED', true, 'rate_limited'],
+    [{ message: 'a rejection no release has seen' }, 'REMOTE_ERROR', false, 'unrecognized'],
+    [{ message: 'constructor' }, 'REMOTE_ERROR', false, 'unrecognized'],
+    ['not an object', 'REMOTE_ERROR', false, 'unrecognized'],
   ])('maps connectionRejected %j to %s', async (payload, code, retryable, reason) => {
     const socket = new FakeSocket()
     const webSocketFactory = vi.fn(() => {

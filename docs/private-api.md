@@ -251,3 +251,23 @@ the error string can carry document content or ids: a comment mismatch quotes do
 release recognizes becomes an identifier in `details.reason`, such as `invalid_session` or
 `update_too_large`, and anything else is `unrecognized`. An `otUpdateError` payload's `project_id`,
 `doc_id`, and host-derived `_id` are never surfaced either.
+
+`connectionRejected` is classified by its `code`, when real-time attaches one, and then its
+message, as real-time's `Router.js` and `WebApiManager.js` send them:
+
+| Payload | Code | `details.reason` |
+| --- | --- | --- |
+| `invalid session` | `AUTH_EXPIRED` | `invalid_session` |
+| `rate-limit hit when joining project`, code `TooManyRequests` | `RATE_LIMITED`, retryable | `join_rate_limited` |
+| `retry`, sent while real-time shuts down | `TRANSIENT_FAILURE`, retryable | `retry` |
+| `not authorized`, web answered the join with 403 | `PERMISSION_DENIED` | `not_authorized` |
+| `project not found`, code `ProjectNotFound` | `NOT_FOUND` | `project_not_found` |
+| `missing/bad ?projectId=... query flag on handshake` | `INVALID_ARGUMENT` | `bad_project_id` |
+| `error`, or `Something went wrong in real-time service` | `REMOTE_ERROR`, retryable | `connection_error`, `realtime_error` |
+| anything else | `REMOTE_ERROR` | `unrecognized` |
+
+A join that failed with a retryable code other than `RATE_LIMITED` is tried again, as a read is
+([retries and pacing](configuration.md#retries-and-pacing)). Since 1.0.0 only `invalid session`
+means the session expired; before it, every rejection but the rate limit was `AUTH_EXPIRED`. A
+project page that names a signed-in user (`ol-user_id`) but carries no `ol-csrfToken` is
+`PROTOCOL_UNSUPPORTED` with `details.kind: "response_shape"`, not `AUTH_EXPIRED`.

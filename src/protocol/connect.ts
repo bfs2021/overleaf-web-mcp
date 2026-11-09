@@ -8,7 +8,7 @@ import { USER_AGENT } from '../version.js'
 import { ProjectConnection, type JoinProjectData } from './project-connection.js'
 import { SocketIo09Peer, type WebSocketPeer } from './socketio09-client.js'
 import { parseHandshake } from './socketio09-codec.js'
-import { upstreamReason } from './upstream-reason.js'
+import { upstreamCodeReason, upstreamReason } from './upstream-reason.js'
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>
 type WebSocketFactory = (url: string, options: { headers: Record<string, string> }) => WebSocketPeer
@@ -43,6 +43,48 @@ function responseSetCookies(headers: Headers): string[] {
   return value ? [value] : []
 }
 
+/**
+ * Maps real-time's `connectionRejected` payload to a typed error, by its coded `code` first and
+ * then its message. Nothing was sent to the project in any case. Only an invalid session means
+ * signing in again; a rejection this release does not know stays `REMOTE_ERROR`, never
+ * `AUTH_EXPIRED`, so an agent is not told to stop for a failure a new login would not fix.
+ */
+export function classifyRejection(value: unknown): McpError {
+  const reason = upstreamCodeReason(value) ?? upstreamReason(value)
+  const details = { reason }
+  switch (reason) {
+    case 'invalid_session':
+      return new McpError('AUTH_EXPIRED', `Overleaf rejected the socket connection. ${AUTH_LOGIN_INSTRUCTION}`, {
+        details,
+      })
+    case 'join_rate_limited':
+    case 'rate_limited':
+      return new McpError(
+        'RATE_LIMITED',
+        'Overleaf rate-limited joining this project. Nothing was sent; wait a minute before trying again.',
+        { retryable: true, details }
+      )
+    case 'retry':
+      return new McpError(
+        'TRANSIENT_FAILURE',
+        'Overleaf asked the client to connect again later, as it does while restarting. Nothing was sent; try again shortly.',
+        { retryable: true, details }
+      )
+    case 'not_authorized':
+    case 'unauthorized':
+      return new McpError('PERMISSION_DENIED', 'Overleaf refused to let this account join the project.', { details })
+    case 'project_not_found':
+      return new McpError('NOT_FOUND', 'Overleaf could not find this project.', { details })
+    case 'bad_project_id':
+      return new McpError('INVALID_ARGUMENT', 'Overleaf did not accept the projectId as a project id.', { details })
+    default:
+      return new McpError('REMOTE_ERROR', 'Overleaf rejected the socket connection.', {
+        retryable: reason === 'connection_error' || reason === 'realtime_error',
+        details,
+      })
+  }
+}
+
 /** Performs the legacy handshake, validates project bootstrap data, and returns a live socket. */
 export async function openProjectConnection(options: OpenProjectConnectionOptions): Promise<ProjectConnection> {
   const baseUrl = options.baseUrl.replace(/\/$/u, '')
@@ -75,7 +117,10 @@ export async function openProjectConnection(options: OpenProjectConnectionOption
     throw new McpError('AUTH_EXPIRED', `Overleaf authentication expired. ${AUTH_LOGIN_INSTRUCTION}`)
   }
   if (!response.ok) {
-    throw new McpError('REMOTE_ERROR', `Socket.IO handshake returned HTTP ${response.status}.`)
+    throw new McpError('REMOTE_ERROR', `Socket.IO handshake returned HTTP ${response.status}.`, {
+      retryable: response.status >= 500,
+      details: { status: response.status },
+    })
   }
   // SaaS handshakes can set a load-balancer cookie; the WebSocket must use the same route.
   const handshakeCookieUrl = response.url || handshakeUrl
@@ -112,22 +157,7 @@ export async function openProjectConnection(options: OpenProjectConnectionOption
       callback()
     }
     peer.once('joinProjectResponse', (value: JoinProjectData) => finish(() => resolve(value)))
-    peer.once('connectionRejected', (value: unknown) =>
-      finish(() => {
-        const reason = upstreamReason(value)
-        reject(
-          reason === 'join_rate_limited'
-            ? new McpError(
-                'RATE_LIMITED',
-                'Overleaf rate-limited joining this project. Nothing was sent; wait a minute before trying again.',
-                { retryable: true, details: { reason } }
-              )
-            : new McpError('AUTH_EXPIRED', `Overleaf rejected the socket connection. ${AUTH_LOGIN_INSTRUCTION}`, {
-                details: { reason },
-              })
-        )
-      })
-    )
+    peer.once('connectionRejected', (value: unknown) => finish(() => reject(classifyRejection(value))))
     // The socket's own error text is not passed on; this server's typed errors are.
     peer.once('error', error =>
       finish(() =>

@@ -38,6 +38,17 @@ function runtimeWithWrites(userId: string | null = 'user') {
   return { runtime, entities, documents }
 }
 
+async function savedSessionConfig(): Promise<ReturnType<typeof readConfig>> {
+  const directory = await mkdtemp(join(tmpdir(), 'overleaf-runtime-'))
+  const cookiePath = join(directory, 'cookies.txt')
+  await writeFile(
+    cookiePath,
+    '# Netscape HTTP Cookie File\n.overleaf.test\tTRUE\t/\tTRUE\t2147483647\toverleaf.sid\tsession\n'
+  )
+  if (process.platform !== 'win32') await chmod(cookiePath, 0o600)
+  return readConfig({ OVERLEAF_COOKIE_JAR_FILE: cookiePath, OVERLEAF_BASE_URL: 'https://overleaf.test' })
+}
+
 describe('runtime bootstrap', () => {
   test('loads a protected browser cookie jar and discovers account metadata', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'overleaf-runtime-'))
@@ -78,6 +89,28 @@ describe('runtime bootstrap', () => {
       sessionExpiresAt: '2038-01-19T03:14:07.000Z',
     })
     await runtime.close()
+  })
+
+  test.each([
+    // A signed-in page that no longer carries the token is a page shape this release does not read.
+    ['<meta name="ol-user_id" content="user">', 'PROTOCOL_UNSUPPORTED'],
+    // A page with neither, as the anonymous landing page, means the session is gone.
+    ['<html><body>Welcome</body></html>', 'AUTH_EXPIRED'],
+  ])('classifies a bootstrap page %j as %s', async (page, code) => {
+    const config = await savedSessionConfig()
+    await expect(
+      OverleafRuntime.create(config, { fetcher: async () => await Promise.resolve(new Response(page)) })
+    ).rejects.toMatchObject({ code })
+  })
+
+  test('still reports a redirect to /login as AUTH_EXPIRED', async () => {
+    const config = await savedSessionConfig()
+    const fetcher = async (): Promise<Response> => {
+      const response = new Response('<html>login</html>')
+      Object.defineProperty(response, 'url', { value: 'https://overleaf.test/login' })
+      return await Promise.resolve(response)
+    }
+    await expect(OverleafRuntime.create(config, { fetcher })).rejects.toMatchObject({ code: 'AUTH_EXPIRED' })
   })
 
   test('tracks non-empty initial file content when requested', async () => {

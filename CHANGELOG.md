@@ -5,6 +5,40 @@ All notable changes to this project are documented here. This project follows
 shapes, and the command line's commands and exit codes may change in a minor or patch release;
 each such change is listed below.
 
+## [1.0.0] - Unreleased
+
+### Added
+
+- **`TRANSIENT_FAILURE`** error code, always `retryable: true`, for a read that kept failing for a
+  reason that passes, and for a project join Overleaf refused with `retry`, as while restarting.
+  Nothing was changed when it is returned. The command line exits 7 for it.
+- **Bounded retry for reads only.** A `GET` that failed on the network or with HTTP 5xx, and a
+  project join refused for a passing reason or closed before Overleaf answered, are tried again
+  after a short randomized exponential backoff, up to `OVERLEAF_READ_ATTEMPTS` attempts in all
+  (default 3, at most 3; 1 turns retries off). Exhausted, the call fails with
+  `TRANSIENT_FAILURE`, `details.attempts`, `details.lastCode`, and, when known, `details.status`,
+  `details.reason`, and `details.path`. No request that changes something is ever sent twice, and
+  no read that timed out, was rate-limited, or was refused is retried.
+- **`OVERLEAF_MIN_REQUEST_INTERVAL_MS`** (default 0, at most 60000) spaces the starts of REST
+  requests from one process.
+- A network failure of a REST request is `REMOTE_ERROR` with `details.kind: "network"`, and a
+  Socket.IO handshake answered with an HTTP error carries `details.status`, `retryable` for 5xx.
+
+### Changed
+
+- **Socket rejections are classified.** A project join Overleaf refuses is no longer
+  `AUTH_EXPIRED` for every reason but the rate limit. `invalid session` stays `AUTH_EXPIRED`;
+  `retry` is `TRANSIENT_FAILURE`; `not authorized` is `PERMISSION_DENIED`; `project not found` is
+  `NOT_FOUND`; a bad project id is `INVALID_ARGUMENT`; `too many requests` joins the join limiter
+  as `RATE_LIMITED`; real-time's own failures are retryable `REMOTE_ERROR`
+  (`details.reason: "connection_error"` or `"realtime_error"`); and anything else is
+  `REMOTE_ERROR` with `details.reason: "unrecognized"`. An agent is no longer told to sign in again
+  for a failure a new login would not fix. The command line's exit code follows the new code.
+- **A signed-in project page without a CSRF token** is `PROTOCOL_UNSUPPORTED` with
+  `details.kind: "response_shape"` and `details.endpoint: "GET /project"`, not `AUTH_EXPIRED`. A
+  page with no signed-in user, or a redirect to `/login`, is still `AUTH_EXPIRED`.
+- The tool output schemas that list error codes include `TRANSIENT_FAILURE`.
+
 ## [0.9.0] - 2026-11-07
 
 Multi-file documents. A manuscript split across `\input`, `\include`, `\subfile`, and `\import`

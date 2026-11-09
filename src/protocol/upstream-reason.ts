@@ -9,6 +9,9 @@
 const KNOWN_REASONS: Record<string, string> = {
   'invalid session': 'invalid_session',
   retry: 'retry',
+  // real-time's answer when looking the session up failed for a reason other than a missing one.
+  error: 'connection_error',
+  'missing/bad ?projectid=... query flag on handshake': 'bad_project_id',
   'not authorized': 'not_authorized',
   unauthorized: 'unauthorized',
   'project not found': 'project_not_found',
@@ -44,7 +47,22 @@ function messageOf(value: unknown): string | undefined {
   return typeof message === 'string' ? message : undefined
 }
 
+/**
+ * The `code` real-time attaches to a coded error, as on a refused join. Only the codes this
+ * release knows are returned, so nothing else from the payload reaches a caller.
+ */
+const KNOWN_CODES: Record<string, string> = {
+  TooManyRequests: 'join_rate_limited',
+  ProjectNotFound: 'project_not_found',
+}
+
+/** The short identifier for a coded upstream error, or undefined when the code is not known. */
+export function upstreamCodeReason(value: unknown): string | undefined {
+  const code = (value as { code?: unknown } | null)?.code
+  return typeof code === 'string' && Object.hasOwn(KNOWN_CODES, code) ? KNOWN_CODES[code] : undefined
+}
+
 export function upstreamReason(value: unknown): string {
   const message = messageOf(value)?.trim().toLowerCase()
-  return (message === undefined ? undefined : KNOWN_REASONS[message]) ?? 'unrecognized'
+  return message !== undefined && Object.hasOwn(KNOWN_REASONS, message) ? KNOWN_REASONS[message]! : 'unrecognized'
 }

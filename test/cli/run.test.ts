@@ -171,6 +171,7 @@ const EXIT_TABLE: Record<ErrorCode, { write: number; read: number }> = {
   RATE_LIMITED: { write: 7, read: 7 },
   COMPILE_RATE_LIMITED: { write: 7, read: 7 },
   COMPILE_UNAVAILABLE: { write: 7, read: 7 },
+  TRANSIENT_FAILURE: { write: 7, read: 7 },
   NOT_FOUND: { write: 1, read: 1 },
   PROTOCOL_UNSUPPORTED: { write: 1, read: 1 },
   UPDATE_TOO_LARGE: { write: 1, read: 1 },

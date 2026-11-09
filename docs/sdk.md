@@ -96,7 +96,10 @@ client and the command line report `INVALID_ARGUMENT` with `details.issues`, or
 [safety model](safety.md#error-codes) lists the codes, and the command line's
 [exit codes](cli.md#exit-codes) are a good rule for deciding what to do next.
 
-The client never retries. `retryable: true` is advisory, and a `TIMEOUT` from a write carries it
+The client never retries a write or a call. Below it, a read is sent again at most twice after a
+network failure or HTTP 5xx, and a project join after a passing refusal, before failing with
+`TRANSIENT_FAILURE` (see [retries and pacing](configuration.md#retries-and-pacing)).
+`retryable: true` is advisory, and a `TIMEOUT` from a write carries it
 too: when `details.outcome` is `unknown`, or the code is `OUTCOME_UNKNOWN`, read the document or
 the tree before doing anything else, and never call the write again blindly.
 

@@ -3,6 +3,7 @@ import { STATUS_CODES } from 'node:http'
 import type { CookieJar } from 'tough-cookie'
 
 import { AUTH_LOGIN_INSTRUCTION, McpError } from '../core/errors.js'
+import { defaultSleep, retryRead, type Sleep } from '../core/retry.js'
 import { USER_AGENT } from '../version.js'
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>
@@ -14,6 +15,11 @@ export interface HttpClientOptions {
   defaultTimeoutMs?: number
   csrfToken?: () => string | undefined
   persistSetCookies?: (url: string, values: string[]) => Promise<void>
+  /** Attempts of a GET or HEAD after a network failure or HTTP 5xx, 1 to 3; 1, the default, never retries. */
+  readAttempts?: number
+  /** The least time between the starts of two requests from this client; 0, the default, paces nothing. */
+  minRequestIntervalMs?: number
+  sleep?: Sleep
 }
 
 export interface RequestOptions {
@@ -102,6 +108,10 @@ export class OverleafHttpClient {
   readonly #defaultTimeoutMs: number
   readonly #csrfToken: (() => string | undefined) | undefined
   readonly #persistSetCookies: ((url: string, values: string[]) => Promise<void>) | undefined
+  readonly #readAttempts: number
+  readonly #minRequestIntervalMs: number
+  readonly #sleep: Sleep
+  #nextStartAt = 0
 
   constructor(options: HttpClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/u, '')
@@ -110,9 +120,41 @@ export class OverleafHttpClient {
     this.#defaultTimeoutMs = options.defaultTimeoutMs ?? 30_000
     this.#csrfToken = options.csrfToken
     this.#persistSetCookies = options.persistSetCookies
+    this.#readAttempts = options.readAttempts ?? 1
+    this.#minRequestIntervalMs = options.minRequestIntervalMs ?? 0
+    this.#sleep = options.sleep ?? defaultSleep
   }
 
+  /**
+   * Sends one request. A GET or HEAD that failed on the network or with HTTP 5xx is sent again
+   * with backoff, up to `readAttempts` in all, and then fails with `TRANSIENT_FAILURE`. Nothing
+   * else is ever sent twice: not a request that changes something, and not a read that timed out,
+   * was rate-limited, or was refused.
+   */
   async request(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<Response> {
+    if (method !== 'GET' && method !== 'HEAD') return await this.#send(method, path, body, options)
+    return await retryRead(async () => await this.#send(method, path, body, options), {
+      attempts: this.#readAttempts,
+      sleep: this.#sleep,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      isTransient: error =>
+        error.code === 'REMOTE_ERROR' &&
+        (error.details?.kind === 'network' ||
+          (typeof error.details?.status === 'number' && error.details.status >= 500)),
+      details: { path },
+    })
+  }
+
+  /** Waits for this request's turn when requests are paced; each start books the next slot. */
+  async #pace(): Promise<void> {
+    if (this.#minRequestIntervalMs <= 0) return
+    const now = Date.now()
+    const startAt = Math.max(now, this.#nextStartAt)
+    this.#nextStartAt = startAt + this.#minRequestIntervalMs
+    if (startAt > now) await this.#sleep(startAt - now)
+  }
+
+  async #send(method: string, path: string, body: unknown, options: RequestOptions): Promise<Response> {
     const base = new URL(`${this.baseUrl}/`)
     const target = new URL(path, base)
     // A path that resolves elsewhere would carry the session cookie and CSRF token off Overleaf.
@@ -136,6 +178,7 @@ export class OverleafHttpClient {
       if (csrf) headers.set('x-csrf-token', csrf)
     }
 
+    await this.#pace()
     const timeoutSignal = AbortSignal.timeout(options.timeoutMs ?? this.#defaultTimeoutMs)
     const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
 
@@ -158,6 +201,7 @@ export class OverleafHttpClient {
       }
       throw new McpError('REMOTE_ERROR', `Overleaf request failed: ${method} ${path}`, {
         retryable: true,
+        details: { kind: 'network' },
         cause: error,
       })
     }

@@ -23,6 +23,8 @@ process, which `readConfig()` reads from `process.env`. Defaults suit `www.overl
 | `OVERLEAF_APPLY_TIMEOUT_MS` | `30000` | OT acknowledgement and application timeout |
 | `OVERLEAF_RECOVERY_TIMEOUT_MS` | `30000` | Ambiguous-mutation observation window |
 | `OVERLEAF_COMPILE_TIMEOUT_MS` | `120000` | Default compile wait, capped at 15 minutes |
+| `OVERLEAF_READ_ATTEMPTS` | `3` | Attempts of a read after a transient failure, 1 (no retry) to 3; see [retries and pacing](#retries-and-pacing) |
+| `OVERLEAF_MIN_REQUEST_INTERVAL_MS` | `0` | Least time between the starts of two REST requests, at most 60000 |
 | `HTTPS_PROXY`, `https_proxy` | Unset | Proxy for an `https://` base URL; see [behind a proxy](#behind-a-proxy) |
 | `HTTP_PROXY`, `http_proxy` | Unset | Proxy for an `http://` base URL |
 | `NO_PROXY`, `no_proxy` | Unset | Hosts reached directly, bypassing the proxy |
@@ -37,6 +39,21 @@ returns `UPDATE_TOO_LARGE` and must be split into smaller, independently revisio
 
 `compile_project.timeoutMs` accepts 1 second through 15 minutes. It changes only how long the call
 waits, not the account's server-side compile allowance.
+
+## Retries and pacing
+
+Only reads are ever sent again. A `GET` that failed on the network or with HTTP 5xx, and a project
+join that Overleaf refused for a reason that passes (it asked the client to come back, as while
+restarting, or the socket closed before Overleaf answered), are tried again after a short
+randomized backoff, up to `OVERLEAF_READ_ATTEMPTS` attempts in all. When every attempt failed that
+way, the call fails with `TRANSIENT_FAILURE`, `retryable: true`, and `details.attempts` and
+`details.lastCode`; the command line exits 7. Nothing else is retried: no request that changes
+something, no OT update, upload, or delete, and no read that timed out, was rate-limited, or was
+refused. A timed-out write is observed, never resubmitted, as before.
+
+`OVERLEAF_MIN_REQUEST_INTERVAL_MS` spaces the starts of REST requests from one process, for a
+deployment that rate-limits closely. It does not pace the collaboration socket, and two processes
+are not paced against each other.
 
 `download_project_zip.timeoutMs` (1 second to 15 minutes, default 5 minutes) bounds a whole-project
 download, the whole transfer included, in place of `OVERLEAF_REQUEST_TIMEOUT_MS`.
