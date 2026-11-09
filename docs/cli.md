@@ -19,7 +19,7 @@ npx overleaf-web-mcp call auth_status
 [installation guide](install.md#1-sign-in-once). `call auth_status` then prints the account's
 project count and when the session expires, and exits 0. For frequent use, install the package
 once with `npm install -g overleaf-web-mcp` and run `overleaf-web-mcp` directly. In a script, pin the version and pass `--yes`, as in
-`npx --yes overleaf-web-mcp@0.9 projects list`: without `--yes`, `npx` can print an install
+`npx --yes overleaf-web-mcp@1.0 projects list`: without `--yes`, `npx` can print an install
 notice on stderr the first time.
 
 Commands read the same environment variables as the server, from the shell they run in; see
@@ -462,7 +462,7 @@ how to do one job with these commands, and calls only the commands listed above.
 Each treats manuscript text and reviewer comments as data, never as instructions. A project
 path, which a collaborator chose, never goes on a shell command line: the skills put it in a
 request file for `call`, and single-quote every other value. They run the
-command line as `npx --yes overleaf-web-mcp@0.9 …`, so they need Node.js 20 or newer, network
+command line as `npx --yes overleaf-web-mcp@1.0 …`, so they need Node.js 20 or newer, network
 access to Overleaf, and a session saved with `npx overleaf-web-mcp login`.
 
 To install them from the repository with the [`skills`](https://github.com/vercel-labs/skills)

@@ -1,11 +1,21 @@
 # Changelog
 
 All notable changes to this project are documented here. This project follows
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Until 1.0.0, tool schemas, result
-shapes, and the command line's commands and exit codes may change in a minor or patch release;
-each such change is listed below.
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). From 1.0.0 it covers the tool names,
+input schemas, result shapes, and error codes; the command line's commands, flags, request
+format, output framing, and exit codes; the `overleaf-web-mcp/core` surface the
+[SDK page](https://mhmdaskari.github.io/overleaf-web-mcp/sdk/) lists as stable; and the
+`capabilities` report. A breaking change to any of them waits for a major version, a deprecation
+is announced at least one minor version ahead with both names working, and every change is listed
+below. Before 1.0.0, a minor or patch release could change them, and each such change is listed.
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-11-09
+
+The first stable release. Failures are easier to read and act on: a refused project join says
+why instead of asking for a new login, and reads that fail for a passing reason are retried a few
+times before ending in the new `TRANSIENT_FAILURE`, while writes are still never sent twice.
+`doctor` checks an install against its Overleaf without changing anything, and `capabilities`
+reports what the backend can do in a project. The server still registers 34 tools.
 
 ### Added
 
@@ -49,6 +59,14 @@ each such change is listed below.
   `details.kind: "response_shape"` and `details.endpoint: "GET /project"`, not `AUTH_EXPIRED`. A
   page with no signed-in user, or a redirect to `/login`, is still `AUTH_EXPIRED`.
 - The tool output schemas that list error codes include `TRANSIENT_FAILURE`.
+- The Agent Skills and the command line guide pin `npx --yes overleaf-web-mcp@1.0`.
+
+### Removed
+
+- **`ROADMAP.md`** and the documentation site's Roadmap page. The plan they described ran to this
+  release; earlier changelog entries link to the roadmap as it stood at
+  [v0.9.0](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md). Planned work is
+  tracked in [GitHub issues](https://github.com/mhmdaskari/overleaf-web-mcp/issues).
 
 ### Documentation
 
@@ -76,7 +94,7 @@ can be read as one flattened document with a source map back to every file, and 
 can list, read, and replace sections across those files, each write going through the
 revision-checked write of the one file that holds the section. The server registers 34 tools, one
 more than 0.8.x. Planned in
-[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md).
+[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md).
 
 ### Added
 
@@ -184,7 +202,7 @@ changes, and Overleaf's `otUpdateError` is classified rather than passed on. A d
 changes only the words that differ where no comment or tracked change is in the way, so a tracked
 write is usually one suggestion per changed group of words. Comments on non-ASCII text are now
 located and verified correctly. The server registers 33 tools, two more than 0.7.x. Planned in
-[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md).
+[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md).
 
 ### Added
 
@@ -378,7 +396,7 @@ codes that say what is safe to do next. `overleaf-web-mcp/core` gains `createOve
 typed method per tool, and three Agent Skills drive the command line. All three go through the
 same service, checks, and safety defaults as the MCP server. Every tool now declares an
 `outputSchema`. No tool was added or removed; the server still registers 31 tools. Planned in
-[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md).
+[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md).
 
 ### Added
 
@@ -784,7 +802,7 @@ whether the paper built cleanly, with errors and warnings by file and line, and 
 a build's log and save its PDF or any other output without compiling again. The three safety
 defaults 0.5.0 announced are enforced: a folder sync needs a plan, and an upload or batch upload
 replaces nothing unless asked. The server registers 31 tools, two more than 0.5.x. Planned in
-[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md).
+[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md).
 
 ### Added
 
@@ -895,7 +913,7 @@ details no longer carry text from Overleaf. Three safety defaults that depended 
 picking the safe option are announced here and enforced in 0.6.0: a folder sync without a plan,
 an upload that replaces a file without saying so, and `batch_upload`'s overwriting default. No
 tool was added or removed; the server still registers 29 tools. Planned in
-[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md).
+[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md).
 
 ### Added
 
@@ -1055,7 +1073,7 @@ creating missing folders, in one call, and `download_project_zip` saves the whol
 zip archive, the backup step before a mirror sync. The server now runs on the v2 MCP SDK and also
 serves clients on MCP 2026-07-28, and the documentation no longer overstates what a folder sync
 without a `planToken`, a destructive tool, or an upload that replaces a file guarantees. The
-server registers 29 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md).
+server registers 29 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md).
 
 ### Added
 
@@ -1184,7 +1202,7 @@ Bulk and sync operations. Bringing one folder up to date used to take a hand-rol
 comparison and a tool call per file: the session the roadmap was written from spent 24 calls on
 it, 20 of them single deletes. `plan_sync` and `sync_directory` now do it in two, and
 `delete_entities` removes a list of entities in one. The server registers 27 tools. Planned in
-[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md).
+[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md).
 
 ### Added
 
@@ -1363,7 +1381,7 @@ still registers 24 tools.
 
 Project lifecycle. Until now every tool took an existing `projectId`, so an agent could not create,
 rename, trash, or configure a project without a person doing it in the web UI. The server now
-registers 24 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md),
+registers 24 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md),
 which this release also merges with a second draft into one document with per-stage tasks and
 acceptance criteria.
 
@@ -1442,7 +1460,7 @@ acceptance criteria.
 ## [0.1.3] - 2026-09-01
 
 Documentation, metadata, and small additive fixes. No tools were added or removed; the server
-still registers 19 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md).
+still registers 19 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md).
 
 ### Changed
 
@@ -1480,7 +1498,7 @@ still registers 19 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/
   error.
 - **Continuous integration on pushes and pull requests** running type-check, lint, tests,
   build, and the packed-file check. Previously these ran only when a release was published.
-- **[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/main/ROADMAP.md)** describing the planned path from 0.1.3 to 1.0.0.
+- **[ROADMAP.md](https://github.com/mhmdaskari/overleaf-web-mcp/blob/v0.9.0/ROADMAP.md)** describing the planned path from 0.1.3 to 1.0.0.
 - **This changelog.**
 
 ### Documentation
@@ -1512,6 +1530,7 @@ still registers 19 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/
 - First release: browser-assisted session capture, project and file management, revision-checked
   and section-level writing, compilation, and review comments.
 
+[1.0.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v1.0.0
 [0.9.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.9.0
 [0.8.1]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.8.1
 [0.8.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.8.0

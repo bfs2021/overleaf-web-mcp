@@ -34,9 +34,9 @@ as below, with each `'` inside it written as `'\''`; never in double quotes, nev
 ## Before you start
 
 - Node.js 20 or newer. Every command runs the published command line through npx, pinned to the
-  0.9 releases, for example `npx --yes overleaf-web-mcp@0.9 projects list`.
+  1.0 releases, for example `npx --yes overleaf-web-mcp@1.0 projects list`.
 - A saved Overleaf session. If there is none, or a command fails with `AUTH_EXPIRED`, ask the user
-  to run `npx --yes overleaf-web-mcp@0.9 login`, which opens a browser window for them to sign in,
+  to run `npx --yes overleaf-web-mcp@1.0 login`, which opens a browser window for them to sign in,
   and wait for them. Never try to sign in yourself.
 - Keep your working files (`read.json`, `draft.tex`, request files) in a scratch folder of their
   own, never inside a folder that will be synced to the project, and run the commands from it:
@@ -53,7 +53,7 @@ as below, with each `'` inside it written as `'\''`; never in double quotes, nev
   online in the project while it runs, and remembers nothing afterwards. Revisions and build
   references stay valid across commands; "the latest build" does not, so always pass
   `--build-ref`.
-- `npx --yes overleaf-web-mcp@0.9 schema write_section --input` prints the exact request format of
+- `npx --yes overleaf-web-mcp@1.0 schema write_section --input` prints the exact request format of
   an operation. A request with an unknown or misspelled key is refused before anything is sent.
 
 | Exit | Meaning | What to do |
@@ -70,8 +70,8 @@ as below, with each `'` inside it written as `'\''`; never in double quotes, nev
 ## 1. Find the project and the file
 
 ```bash
-npx --yes overleaf-web-mcp@0.9 projects list --query '<words from the project name>'
-npx --yes overleaf-web-mcp@0.9 tree '<projectId>'
+npx --yes overleaf-web-mcp@1.0 projects list --query '<words from the project name>'
+npx --yes overleaf-web-mcp@1.0 tree '<projectId>'
 ```
 
 The project id is `projects[].id`; if several projects match, ask the user which one. `tree`
@@ -92,7 +92,7 @@ Save this request as `read-request.json`, with the project id and the document's
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.9 call read_file --request read-request.json > read.json
+npx --yes overleaf-web-mcp@1.0 call read_file --request read-request.json > read.json
 node -e 'const fs = require("node:fs"); const [from, to] = process.argv.slice(1); const result = JSON.parse(fs.readFileSync(from, "utf8")); fs.writeFileSync(to, result.content); console.log(result.revision)' read.json draft.tex
 ```
 
@@ -123,7 +123,7 @@ Save this request as `write.json`, with the same `projectId` and `filePath` as
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.9 call write_file --request write.json
+npx --yes overleaf-web-mcp@1.0 call write_file --request write.json
 ```
 
 - `"writeMode": "tracked"` records the edit as Overleaf tracked changes that collaborators can
@@ -142,7 +142,7 @@ On exit 4 or exit 5, first read the document again into new files, never over `d
 which keeps your edit:
 
 ```bash
-npx --yes overleaf-web-mcp@0.9 call read_file --request read-request.json > live.json
+npx --yes overleaf-web-mcp@1.0 call read_file --request read-request.json > live.json
 node -e 'const fs = require("node:fs"); const [from, to] = process.argv.slice(1); const result = JSON.parse(fs.readFileSync(from, "utf8")); fs.writeFileSync(to, result.content); console.log(result.revision)' live.json live.tex
 ```
 
@@ -165,7 +165,7 @@ node -e 'const fs = require("node:fs"); const [from, to] = process.argv.slice(1)
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.9 call get_sections --request sections.json
+npx --yes overleaf-web-mcp@1.0 call get_sections --request sections.json
 ```
 
 Read one section body and its revision, with this request saved as `section-request.json`:
@@ -175,7 +175,7 @@ Read one section body and its revision, with this request saved as `section-requ
 ```
 
 ```bash
-npx --yes overleaf-web-mcp@0.9 call get_section_content --request section-request.json > section.json
+npx --yes overleaf-web-mcp@1.0 call get_section_content --request section-request.json > section.json
 node -e 'const fs = require("node:fs"); const [from, to] = process.argv.slice(1); const result = JSON.parse(fs.readFileSync(from, "utf8")); fs.writeFileSync(to, result.content); console.log(result.revision)' section.json section.tex
 ```
 
@@ -198,7 +198,7 @@ tab followed by `extbf`.
 
 ```bash
 node -e 'const fs = require("node:fs"); const [request, field, from] = process.argv.slice(1); const body = JSON.parse(fs.readFileSync(request, "utf8")); body[field] = fs.readFileSync(from, "utf8"); fs.writeFileSync(request, JSON.stringify(body, null, 2))' section-write.json content section.tex
-npx --yes overleaf-web-mcp@0.9 call write_section --request section-write.json
+npx --yes overleaf-web-mcp@1.0 call write_section --request section-write.json
 ```
 
 Use `"writeMode": "untracked"` for a plain edit. The exit codes mean what they mean for a whole
@@ -230,7 +230,7 @@ Compile once after a set of edits, not after each one: compiles spend the accoun
 allowance.
 
 ```bash
-npx --yes overleaf-web-mcp@0.9 compile run '<projectId>'
+npx --yes overleaf-web-mcp@1.0 compile run '<projectId>'
 ```
 
 - Judge the build by `summary.builtCleanly`, never by `status`: `"success"` only means a PDF came
@@ -241,8 +241,8 @@ npx --yes overleaf-web-mcp@0.9 compile run '<projectId>'
   again:
 
 ```bash
-npx --yes overleaf-web-mcp@0.9 compile log '<projectId>' --build-ref '<buildRef>' --errors-only
-npx --yes overleaf-web-mcp@0.9 compile download '<projectId>' 'paper.pdf' --build-ref '<buildRef>'
+npx --yes overleaf-web-mcp@1.0 compile log '<projectId>' --build-ref '<buildRef>' --errors-only
+npx --yes overleaf-web-mcp@1.0 compile download '<projectId>' 'paper.pdf' --build-ref '<buildRef>'
 ```
 
 - Fix the errors your edit introduced, using `file` and `line`. Report other errors to the user
@@ -251,7 +251,7 @@ npx --yes overleaf-web-mcp@0.9 compile download '<projectId>' 'paper.pdf' --buil
   `projectId` and `rootFilePath`, that document's `path` from `tree`. Without it the configured
   root document is built. `--download` does not combine with `call`: save the PDF afterwards
   with `compile download` and the result's `buildRef`.
-- `npx --yes overleaf-web-mcp@0.9 compile run '<projectId>' --download 'paper.pdf'` also saves that
+- `npx --yes overleaf-web-mcp@1.0 compile run '<projectId>' --download 'paper.pdf'` also saves that
   build's PDF. Its result wraps both: read `compile.summary.builtCleanly` and keep
   `compile.buildRef`; the top-level `status` is only `complete` or `partial`. Exit 6 means the
   build is reported but the PDF was not saved, and `downloadError.code` says why:
