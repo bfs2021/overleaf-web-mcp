@@ -39,7 +39,7 @@ export interface AppConfig {
 
 function positiveInteger(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
   const raw = env[name]
-  if (raw === undefined || raw === '') return fallback
+  if (raw === undefined || raw.trim() === '') return fallback
   const parsed = Number(raw)
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new McpError('INVALID_ARGUMENT', `${name} must be a positive integer.`)
@@ -49,12 +49,19 @@ function positiveInteger(env: NodeJS.ProcessEnv, name: string, fallback: number)
 
 function nonNegativeInteger(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
   const raw = env[name]
-  if (raw === undefined || raw === '') return fallback
+  if (raw === undefined || raw.trim() === '') return fallback
   const parsed = Number(raw)
   if (!Number.isSafeInteger(parsed) || parsed < 0) {
     throw new McpError('INVALID_ARGUMENT', `${name} must be zero or a positive integer.`)
   }
   return parsed
+}
+
+/** A value with the surrounding spaces dropped, or `undefined` when the variable is unset or blank. */
+function text(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const raw = env[name]
+  if (raw === undefined || raw.trim() === '') return undefined
+  return raw.trim()
 }
 
 /** A comma-separated list, or `undefined` when the variable is unset or empty. */
@@ -96,11 +103,13 @@ export interface ConfigContext {
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env, context: ConfigContext = {}): AppConfig {
   const authPaths = resolveAuthPaths({ env, ...context })
-  const cookieJarFile = env.OVERLEAF_COOKIE_JAR_FILE ?? authPaths.cookieJarFile
+  const cookieJarFile = text(env, 'OVERLEAF_COOKIE_JAR_FILE') ?? authPaths.cookieJarFile
+  const browserPath = text(env, 'OVERLEAF_BROWSER_PATH')
+  const browserProfileDir = text(env, 'OVERLEAF_BROWSER_PROFILE_DIR') ?? authPaths.browserProfileDir
 
   let baseUrl: URL
   try {
-    baseUrl = new URL(env.OVERLEAF_BASE_URL ?? 'https://www.overleaf.com')
+    baseUrl = new URL(text(env, 'OVERLEAF_BASE_URL') ?? 'https://www.overleaf.com')
   } catch (error) {
     throw new McpError('INVALID_ARGUMENT', 'OVERLEAF_BASE_URL is invalid.', { cause: error })
   }
@@ -108,7 +117,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env, context: Config
     throw new McpError('INVALID_ARGUMENT', 'OVERLEAF_BASE_URL must use HTTP or HTTPS.')
   }
 
-  const supportedProtocolVersions = (env.OVERLEAF_PROTOCOL_VERSIONS ?? '2')
+  const supportedProtocolVersions = (text(env, 'OVERLEAF_PROTOCOL_VERSIONS') ?? '2')
     .split(',')
     .map(value => Number(value.trim()))
   if (supportedProtocolVersions.some(value => !Number.isSafeInteger(value))) {
@@ -124,8 +133,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env, context: Config
   return {
     baseUrl: baseUrl.href.replace(/\/$/u, ''),
     cookieJarFile,
-    ...(env.OVERLEAF_BROWSER_PATH ? { browserPath: env.OVERLEAF_BROWSER_PATH } : {}),
-    browserProfileDir: env.OVERLEAF_BROWSER_PROFILE_DIR ?? authPaths.browserProfileDir,
+    ...(browserPath === undefined ? {} : { browserPath }),
+    browserProfileDir,
     loginTimeoutMs: Math.min(positiveInteger(env, 'OVERLEAF_LOGIN_TIMEOUT_MS', 5 * 60_000), 15 * 60_000),
     maxDocLength: positiveInteger(env, 'OVERLEAF_MAX_DOC_LENGTH', 2 * 1024 * 1024),
     maxUpdateChars: positiveInteger(env, 'OVERLEAF_MAX_UPDATE_CHARS', 7 * 1024 * 1024),

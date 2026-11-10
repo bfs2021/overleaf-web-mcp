@@ -9,6 +9,17 @@ format, output framing, and exit codes; the `overleaf-web-mcp/core` surface the
 is announced at least one minor version ahead with both names working, and every change is listed
 below. Before 1.0.0, a minor or patch release could change them, and each such change is listed.
 
+## [1.1.1] - Unreleased
+
+### Fixed
+
+- An `OVERLEAF_BASE_URL`, `OVERLEAF_COOKIE_JAR_FILE`, `OVERLEAF_BROWSER_PATH`,
+  `OVERLEAF_BROWSER_PROFILE_DIR` or `OVERLEAF_PROTOCOL_VERSIONS` that is empty or only whitespace
+  now counts as unset. A launcher that passes every variable it declares, such as an MCP client
+  configuration generated from `server.json` or a container, no longer fails at startup or uses an
+  unusable path. The numeric settings follow the same rule, and so do `APPDATA` and
+  `XDG_CONFIG_HOME` when they choose the configuration directory.
+
 ## [1.1.0] - 2026-11-09
 
 Project tags. The labels that organize projects on the Overleaf dashboard can now be read with
