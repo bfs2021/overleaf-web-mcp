@@ -9,10 +9,53 @@ format, output framing, and exit codes; the `overleaf-web-mcp/core` surface the
 is announced at least one minor version ahead with both names working, and every change is listed
 below. Before 1.0.0, a minor or patch release could change them, and each such change is listed.
 
-## [1.0.1] - Unreleased
+## [1.1.0] - 2026-11-09
+
+Project tags. The labels that organize projects on the Overleaf dashboard can now be read with
+`list_projects` and changed with the new `manage_tags` tool, from MCP, the command line, and the
+SDK. Every tag change is checked against a fresh read before it is sent and verified by another
+afterwards, and is never sent twice. The server registers 35 tools.
+
+### Added
+
+- **`manage_tags`**, a destructive tool (`destructiveHint: true`) with five actions:
+  - `create`: takes `name`, 1 to 50 characters and unique among the account's tags, and an optional `color`, `#rrggbb` or `hsl(H, 70%, 45%)`;
+  - `edit`: takes `tagId` and a new `name`, `color`, or both;
+  - `delete`: takes `tagId` and `confirmName` equal to the tag's name, else `CONFIRMATION_MISMATCH`. It removes the tag, never its projects;
+  - `add_projects` and `remove_projects`: take `tagId` and `projectIds`, 1 to 100 projects.
+
+  It returns `{ action, tag: { id, name, color?, projectIds }, deleted, verified, recoveredAfterTimeout? }`.
+
+  It refuses, before anything is sent:
+  - an unknown `tagId`, with `NOT_FOUND` and `details.tagId`;
+  - a name another tag has, with `INVALID_ARGUMENT`, `details.kind: "tag_name_taken"`, and that tag's `details.tagId`;
+  - a project the account cannot access, with `NOT_FOUND` and `details.projectIds`.
+
+  A change whose answer was lost is never resent. It is classified from the read-back: `recoveredAfterTimeout: true`, or `OUTCOME_UNKNOWN` with `details.outcome: "unknown"` (exit 5).
+
+  Effects and policy:
+  - every action needs the `project-lifecycle` and `overleaf-read` effects, and `delete` also needs `overleaf-delete`;
+  - with `OVERLEAF_ALLOWED_PROJECTS`, `projectIds` outside the list are `POLICY_DENIED`, a tag's `projectIds` show only allowed projects, and `edit` and `delete` are `POLICY_DENIED` for a tag that holds a project outside the list.
+
+  Each tool is also `overleaf-web-mcp call manage_tags` and `client.manageTags`.
+- **`list_projects` gains `includeTags` and `tag`.**
+  - `includeTags: true` adds `tags: [{ id, name }]` to each project, and a top-level `tags: [{ id, name, color?, projectCount }]` listing every tag of the account, empty ones included. It costs one more request to Overleaf.
+  - `tag` lists only the projects in the tag with that exact name. An unknown name is `NOT_FOUND`.
+
+  Without either parameter, the result and the requests are as before.
+- **Command line:** `projects list` takes `--include-tags` and `--tag <name>`.
+
+### Changed
+
+- The `project-lifecycle` effect now also covers tagging a project, and `overleaf-delete` covers deleting a tag. This affects `OVERLEAF_ALLOWED_EFFECTS`, and only for `manage_tags`.
 
 ### Documentation
 
+- The README comparison was checked again on 2026-11-09:
+  - olcli now moves files and folders;
+  - a new row shows that none of the compared servers manages project tags.
+- [`docs/private-api.md`](https://mhmdaskari.github.io/overleaf-web-mcp/private-api/#tags) lists the tag routes as Overleaf's source defines them.
+- The Agent Skills and the command line guide pin `npx --yes overleaf-web-mcp@1.1`.
 - **Version tags.** Every tool, parameter or value added after its tool, command, environment
   variable, error code, and stable SDK export on the
   [documentation site](https://mhmdaskari.github.io/overleaf-web-mcp/) now shows the release that
@@ -1576,6 +1619,7 @@ still registers 19 tools. Planned in [ROADMAP.md](https://github.com/mhmdaskari/
 - First release: browser-assisted session capture, project and file management, revision-checked
   and section-level writing, compilation, and review comments.
 
+[1.1.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v1.1.0
 [1.0.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v1.0.0
 [0.9.0]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.9.0
 [0.8.1]: https://github.com/mhmdaskari/overleaf-web-mcp/releases/tag/v0.8.1
