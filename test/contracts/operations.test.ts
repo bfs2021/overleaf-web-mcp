@@ -85,10 +85,23 @@ describe('operation contracts', () => {
     expect(OPERATIONS.get_full_document.inputSchema.parse({ projectId: 'p' })).toEqual({ projectId: 'p', maxDepth: 10 })
   })
 
+  test('register manage_tags after update_project_settings, destructive and confirmed by name', () => {
+    const at = OPERATION_NAMES.indexOf('update_project_settings')
+    expect(OPERATION_NAMES[at + 1]).toBe('manage_tags')
+    expect(OPERATIONS.manage_tags.annotations).toStrictEqual({ destructiveHint: true, idempotentHint: false })
+    expect(OPERATIONS.manage_tags.effects).toEqual(['project-lifecycle', 'overleaf-read', 'overleaf-delete'])
+    const input = operationContract('manage_tags').inputSchema!
+    expect(input.safeParse({ action: 'create', name: 'Thesis', color: '#336699' }).success).toBe(true)
+    expect(input.safeParse({ action: 'create', name: 'x'.repeat(51) }).success).toBe(false)
+    expect(input.safeParse({ action: 'create', name: 'Thesis', color: 'red' }).success).toBe(false)
+    expect(input.safeParse({ action: 'create', name: 'Thesis', color: 'hsl(120, 70%, 45%)' }).success).toBe(true)
+    expect(input.safeParse({ action: 'add_projects', tagId: 't', projectIds: [] }).success).toBe(false)
+  })
+
   test('register the two tracked-change operations after set_comment_status, annotated exactly', () => {
     const at = OPERATION_NAMES.indexOf('set_comment_status')
     expect(OPERATION_NAMES.slice(at + 1, at + 3)).toEqual(['list_tracked_changes', 'manage_tracked_changes'])
-    expect(OPERATION_NAMES).toHaveLength(34)
+    expect(OPERATION_NAMES).toHaveLength(35)
     expect(OPERATIONS.list_tracked_changes.annotations).toStrictEqual({ readOnlyHint: true })
     expect(OPERATIONS.list_tracked_changes.effects).toEqual(['overleaf-read'])
     expect(OPERATIONS.manage_tracked_changes.annotations).toStrictEqual({ destructiveHint: true, idempotentHint: true })

@@ -1,0 +1,89 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden tag results > list_projects with includeTags 1`] = `
+{
+  "projects": [
+    {
+      "accessLevel": "owner",
+      "archived": false,
+      "id": "p1",
+      "lastUpdated": "2026-09-02T00:00:00.000Z",
+      "name": "Paper",
+      "tags": [
+        {
+          "id": "64b000000000000000000001",
+          "name": "Thesis",
+        },
+      ],
+      "trashed": false,
+    },
+    {
+      "accessLevel": "readAndWrite",
+      "archived": false,
+      "id": "p2",
+      "lastUpdated": "2026-09-01T00:00:00.000Z",
+      "name": "Talk",
+      "tags": [],
+      "trashed": false,
+    },
+  ],
+  "tags": [
+    {
+      "id": "64b000000000000000000002",
+      "name": "Empty",
+      "projectCount": 0,
+    },
+    {
+      "color": "#336699",
+      "id": "64b000000000000000000001",
+      "name": "Thesis",
+      "projectCount": 1,
+    },
+  ],
+  "totalMatched": 2,
+  "totalProjects": 2,
+}
+`;
+
+exports[`golden tag results > manage_tags create, add_projects, and delete 1`] = `
+{
+  "action": "create",
+  "deleted": false,
+  "tag": {
+    "id": "64b000000000000000000003",
+    "name": "Grant",
+    "projectIds": [],
+  },
+  "verified": true,
+}
+`;
+
+exports[`golden tag results > manage_tags create, add_projects, and delete 2`] = `
+{
+  "action": "add_projects",
+  "deleted": false,
+  "tag": {
+    "color": "#336699",
+    "id": "64b000000000000000000001",
+    "name": "Thesis",
+    "projectIds": [
+      "p1",
+      "p2",
+    ],
+  },
+  "verified": true,
+}
+`;
+
+exports[`golden tag results > manage_tags create, add_projects, and delete 3`] = `
+{
+  "action": "delete",
+  "deleted": true,
+  "tag": {
+    "id": "64b000000000000000000002",
+    "name": "Empty",
+    "projectIds": [],
+  },
+  "verified": true,
+}
+`;

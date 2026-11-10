@@ -21,6 +21,15 @@ which opens no session, and `SERVER_VERSION` in the SDK say which you have. The 
 - The [SDK](sdk.md#stable-surface) surface has existed since 0.5.0 and follows Semantic
   Versioning from 1.0.0. Before 1.0.0 a minor release could change it.
 
+## 1.1.0
+
+[Changelog](changelog.md#110-2026-11-09)
+
+- **MCP tools:** [`manage_tags`](tools.md#manage_tags-destructive); `includeTags` and `tag` on
+  [`list_projects`](tools.md#list_projects-read-only).
+- **Command line:** `--include-tags` and `--tag` on `projects list` ([commands](cli.md#commands)).
+- **SDK:** `client.manageTags`, and the same parameters on `client.listProjects`.
+
 ## 1.0.0
 
 [Changelog](changelog.md#100-2026-11-09)

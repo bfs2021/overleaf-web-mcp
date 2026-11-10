@@ -20,7 +20,7 @@ const SKILLS_DIR = join(ROOT, 'skills')
 const CONFIG_SOURCE = readFileSync(join(ROOT, 'src', 'config.ts'), 'utf8')
 
 /** How every skill runs the command line: pinned to the minor version, without npx's install prompt. */
-const PREFIX = 'npx --yes overleaf-web-mcp@1.0'
+const PREFIX = 'npx --yes overleaf-web-mcp@1.1'
 const SHIPPED = ['overleaf-reviewer-comments', 'overleaf-revise-manuscript', 'overleaf-sync-sources']
 const SPEC_FIELDS = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools']
 const USED_FIELDS = ['compatibility', 'description', 'license', 'name']

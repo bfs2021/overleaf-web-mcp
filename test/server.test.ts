@@ -51,6 +51,7 @@ function fakeRuntime() {
     trackedChanges: { listTrackedChanges: vi.fn(), manageTrackedChanges: vi.fn() },
     history: { monitorProjectHistory: vi.fn() },
     sync: { planSync: vi.fn(), syncDirectory: vi.fn(), deleteEntities: vi.fn(), batchUpload: vi.fn() },
+    tags: { manageTags: vi.fn() },
   }
 }
 

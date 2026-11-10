@@ -46,7 +46,8 @@ Once connected, you talk to your assistant in plain language. The assistant pick
 
 **Start and manage projects.** Create a blank or example project, clone one, or import a zip;
 rename, trash, restore, or archive projects with the name confirmed first; set the root document,
-TeX engine, and TeX Live image so the web editor's Recompile follows.
+TeX engine, and TeX Live image so the web editor's Recompile follows; and organize projects with
+your dashboard tags.
 
 **Browse and organize.** List and search projects, read the file tree with the configured root
 document and compiler, create folders and files, rename, move, upload one file or a list of them,

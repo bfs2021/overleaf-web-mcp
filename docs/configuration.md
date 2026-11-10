@@ -225,8 +225,8 @@ The effects are:
 | --- | --- |
 | `overleaf-read` | Reading project data |
 | `overleaf-write` | Changing content, comments, or the tree without removing anything |
-| `overleaf-delete` | Removing an entity, or permanently deleting a project |
-| `project-lifecycle` | Creating, cloning, importing, renaming, trashing, archiving, or configuring a project |
+| `overleaf-delete` | Removing an entity or a tag, or permanently deleting a project |
+| `project-lifecycle` | Creating, cloning, importing, renaming, trashing, archiving, tagging, or configuring a project |
 | `compile` | Starting or stopping a compile |
 | `local-read` | Reading a file or folder on the server's disk |
 | `local-write` | Creating or replacing a file on the server's disk |

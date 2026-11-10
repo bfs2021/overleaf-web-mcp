@@ -99,7 +99,7 @@ export const ALIASES: readonly AliasCommand[] = [
     words: ['projects', 'list'],
     tool: 'list_projects',
     usage:
-      'projects list [--query <q>] [--limit <n>] [--sort lastUpdated|name] [--include-archived] [--include-trashed]',
+      'projects list [--query <q>] [--limit <n>] [--sort lastUpdated|name] [--include-archived] [--include-trashed] [--include-tags] [--tag <name>]',
     summary: 'List and search projects, newest first',
     positionals: [],
     options: {
@@ -108,6 +108,8 @@ export const ALIASES: readonly AliasCommand[] = [
       sort: { type: 'string' },
       'include-archived': { type: 'boolean' },
       'include-trashed': { type: 'boolean' },
+      'include-tags': { type: 'boolean' },
+      tag: { type: 'string' },
     },
     build: (_positionals, values) =>
       call('list_projects', {
@@ -116,6 +118,8 @@ export const ALIASES: readonly AliasCommand[] = [
         sort: text(values, 'sort'),
         includeArchived: flag(values, 'include-archived') || undefined,
         includeTrashed: flag(values, 'include-trashed') || undefined,
+        includeTags: flag(values, 'include-tags') || undefined,
+        tag: text(values, 'tag'),
       }),
   },
   {

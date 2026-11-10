@@ -42,6 +42,7 @@ describe('strict operation input', () => {
     expect(parseOperationInput('list_projects', {})).toEqual({
       includeArchived: false,
       includeTrashed: false,
+      includeTags: false,
       limit: 50,
       sort: 'lastUpdated',
     })

@@ -1,6 +1,6 @@
 {
   "name": "overleaf-web-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "mcpName": "io.github.mhmdaskari/overleaf-web-mcp",
   "description": "Read, edit, compile, and review Overleaf projects through your own signed-in web session, from an MCP client, the command line, or TypeScript.",
   "author": "Mohammad Askari",

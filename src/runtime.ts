@@ -16,6 +16,7 @@ import { HistoryApi } from './overleaf/history.js'
 import { ProjectsApi } from './overleaf/projects.js'
 import { SectionsApi } from './overleaf/sections-api.js'
 import { SyncApi } from './overleaf/sync.js'
+import { TagsApi } from './overleaf/tags.js'
 import { canDecideTrackedChanges, TrackedChangesApi } from './overleaf/tracked-changes.js'
 import { resolveProjectPath, type EntityType } from './overleaf/tree.js'
 import { ProjectConnectionCache } from './protocol/connection-cache.js'
@@ -107,6 +108,7 @@ export class OverleafRuntime implements OverleafServiceRuntime {
   readonly history: HistoryApi
   readonly projects: ProjectsApi
   readonly sync: SyncApi
+  readonly tags: TagsApi
   readonly connections: ProjectConnectionCache<ProjectConnection>
   /** Decides which projects, local paths, and effects every operation may touch. */
   readonly policy: AccessPolicy
@@ -127,6 +129,7 @@ export class OverleafRuntime implements OverleafServiceRuntime {
     history: HistoryApi
     projects: ProjectsApi
     sync: SyncApi
+    tags: TagsApi
     connections: ProjectConnectionCache<ProjectConnection>
     policy: AccessPolicy
     userId?: string
@@ -145,6 +148,7 @@ export class OverleafRuntime implements OverleafServiceRuntime {
     this.history = options.history
     this.projects = options.projects
     this.sync = options.sync
+    this.tags = options.tags
     this.connections = options.connections
     this.policy = options.policy
     if (options.userId !== undefined) this.userId = options.userId
@@ -222,7 +226,12 @@ export class OverleafRuntime implements OverleafServiceRuntime {
       // Every socket path, for every caller, is checked before a connection is reused or opened.
       beforeConnect: projectId => policy.assertProject(projectId),
     })
-    const account = new AccountApi(http, policy)
+    // The tags read projects to check ids, and the project list reads tags for includeTags.
+    const account: AccountApi = new AccountApi(http, policy, async () => await tags.listTags())
+    const tags: TagsApi = new TagsApi(http, {
+      accessibleProjectIds: async () => new Set((await account.fetchProjects()).projects.map(project => project.id)),
+      policy,
+    })
     const documents = new DocumentsApi(connections, {
       maxDocLength: bootstrap.maxDocLength ?? config.maxDocLength,
       maxUpdateChars: config.maxUpdateChars,
@@ -313,6 +322,7 @@ export class OverleafRuntime implements OverleafServiceRuntime {
       history,
       projects,
       sync,
+      tags,
       connections,
       policy,
       ...(bootstrap.userId === undefined ? {} : { userId: bootstrap.userId }),

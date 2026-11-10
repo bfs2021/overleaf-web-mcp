@@ -42,6 +42,12 @@ export const OUTPUTS: { [N in OperationName]: OperationOutput<N> } = {
   clone_project: { projectId: 'c', name: 'Copy', url: 'https://overleaf.test/project/c' },
   import_project_zip: { projectId: 'z', name: 'Zip', url: 'https://overleaf.test/project/z' },
   manage_project: { action: 'trash', projectId: 'p', name: 'Paper' },
+  manage_tags: {
+    action: 'add_projects',
+    tag: { id: 't1', name: 'Thesis', color: '#336699', projectIds: ['p'] },
+    deleted: false,
+    verified: true,
+  },
   update_project_settings: { projectId: 'p', compiler: 'xelatex' },
   get_project_tree: {
     entities: [

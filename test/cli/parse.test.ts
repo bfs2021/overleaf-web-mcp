@@ -72,6 +72,10 @@ describe('CLI command line', () => {
       tool: 'list_projects',
       input: { query: 'Thesis', limit: 5, includeTrashed: true },
     })
+    expect(parseCommandLine(['projects', 'list', '--include-tags', '--tag', 'Thesis'])).toMatchObject({
+      tool: 'list_projects',
+      input: { includeTags: true, tag: 'Thesis' },
+    })
     expect(parseCommandLine(['tree', 'p'])).toMatchObject({ tool: 'get_project_tree', input: { projectId: 'p' } })
     expect(
       parseCommandLine(['files', 'write', 'p', 'main.tex', '--revision', 'r', '--content-file', 'new.tex', '--tracked'])

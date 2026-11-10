@@ -4,8 +4,8 @@
  *
  * - `overleaf-read`: reads project data.
  * - `overleaf-write`: changes project content or comments without removing an entity.
- * - `overleaf-delete`: removes an entity or permanently deletes a project.
- * - `project-lifecycle`: creates, renames, trashes, archives, or configures a project.
+ * - `overleaf-delete`: removes an entity or a tag, or permanently deletes a project.
+ * - `project-lifecycle`: creates, renames, trashes, archives, tags, or configures a project.
  * - `compile`: starts or stops a compile, spending the account's compile allowance.
  * - `local-read`: reads a file or folder on the server's own disk.
  * - `local-write`: creates or replaces a file on the server's own disk.

@@ -134,8 +134,9 @@ describe('allowed projects through the real runtime', () => {
         const shape = (OPERATIONS[name] as { inputSchema?: { shape: Record<string, unknown> } }).inputSchema?.shape
         return shape !== undefined && ('projectId' in shape || 'sourceProjectId' in shape)
       })
-      // auth_status, list_projects, create_project, and import_project_zip name no project.
-      expect(scoped).toHaveLength(OPERATION_NAMES.length - 4)
+      // auth_status, list_projects, create_project, import_project_zip, and manage_tags name no
+      // single project; manage_tags checks each of its projectIds, tested in test/overleaf/tags.test.ts.
+      expect(scoped).toHaveLength(OPERATION_NAMES.length - 5)
       for (const name of scoped) {
         const input = { ...INPUTS[name] }
         if ('projectId' in input) input.projectId = 'b'
