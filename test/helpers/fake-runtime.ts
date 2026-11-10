@@ -56,6 +56,7 @@ export function fakeServiceRuntime() {
       manageTrackedChanges: resolved(OUTPUTS.manage_tracked_changes),
     },
     history: { monitorProjectHistory: resolved(OUTPUTS.monitor_project_history) },
+    tags: { manageTags: resolved(OUTPUTS.manage_tags) },
     sync: {
       planSync: resolved(OUTPUTS.plan_sync),
       syncDirectory: resolved(OUTPUTS.sync_directory),

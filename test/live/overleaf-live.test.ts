@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { readConfig } from '../../src/config.js'
 import { McpError } from '../../src/core/errors.js'
 import { OverleafRuntime } from '../../src/runtime.js'
+import { createOverleafService } from '../../src/service/operations.js'
 import type { HistorySnapshot } from '../../src/protocol/ot.js'
 import { resolveProjectPath } from '../../src/overleaf/tree.js'
 
@@ -111,6 +112,69 @@ describe.skipIf(!enabled)('disposable Overleaf live project', () => {
         expect(JSON.stringify(result.updates[0])).not.toContain('"email"')
       }
     }
+  )
+
+  test.skipIf(process.env.RUN_OVERLEAF_LIVE_TAG_TESTS !== '1')(
+    'creates a throwaway tag, files the project in it, edits it, and deletes it again',
+    async () => {
+      const service = createOverleafService(runtime)
+      const name = `mcp-tag-${Date.now()}`
+      let tagId: string | undefined
+      try {
+        const created = await service.manage_tags({ action: 'create', name, color: '#336699' })
+        tagId = created.tag.id
+        expect(created).toMatchObject({
+          verified: true,
+          deleted: false,
+          tag: { name, color: '#336699', projectIds: [] },
+        })
+
+        const listed = await service.list_projects({
+          includeArchived: true,
+          includeTrashed: true,
+          includeTags: true,
+          limit: 200,
+          sort: 'lastUpdated',
+        })
+        expect(listed.tags).toContainEqual({ id: tagId, name, color: '#336699', projectCount: 0 })
+
+        const added = await service.manage_tags({ action: 'add_projects', tagId, projectIds: [projectId] })
+        expect(added).toMatchObject({ verified: true, tag: { projectIds: [projectId] } })
+        const inTag = await service.list_projects({
+          includeArchived: true,
+          includeTrashed: true,
+          includeTags: true,
+          tag: name,
+          limit: 200,
+          sort: 'lastUpdated',
+        })
+        expect(inTag.projects.map(project => project.id)).toEqual([projectId])
+        expect(inTag.projects[0]?.tags).toContainEqual({ id: tagId, name })
+
+        const renamed = `${name}-renamed`
+        const edited = await service.manage_tags({ action: 'edit', tagId, name: renamed, color: 'hsl(120, 70%, 45%)' })
+        expect(edited).toMatchObject({ verified: true, tag: { name: renamed, color: 'hsl(120, 70%, 45%)' } })
+
+        const removed = await service.manage_tags({ action: 'remove_projects', tagId, projectIds: [projectId] })
+        expect(removed).toMatchObject({ verified: true, tag: { projectIds: [] } })
+
+        await expect(service.manage_tags({ action: 'delete', tagId, confirmName: name })).rejects.toMatchObject({
+          code: 'CONFIRMATION_MISMATCH',
+        })
+        const deleted = await service.manage_tags({ action: 'delete', tagId, confirmName: renamed })
+        expect(deleted).toMatchObject({ verified: true, deleted: true })
+        tagId = undefined
+      } finally {
+        // A failed run leaves no tag behind: the tag is this test's own, never one the account had.
+        if (tagId !== undefined) {
+          const left = (await runtime.tags.listTags()).find(tag => tag.id === tagId)
+          if (left !== undefined) {
+            await runtime.tags.manageTags({ action: 'delete', tagId, confirmName: left.name })
+          }
+        }
+      }
+    },
+    120_000
   )
 })
 

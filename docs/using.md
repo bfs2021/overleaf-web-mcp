@@ -19,6 +19,7 @@ can call the same operations directly, with the [command line](cli.md) or the
 
 - "List my ten most recently updated Overleaf projects."
 - "Find the projects with *Thesis* in the name, including archived ones."
+- "Which projects are tagged *Grant 2026*? Tag the two new ones too."
 - "Show me the file tree of the *Thesis* project. Which file is the root document?"
 - "Read the abstract from `main.tex`."
 

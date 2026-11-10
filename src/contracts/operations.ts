@@ -7,6 +7,7 @@ import { DEFAULT_INCLUDE_DEPTH, MAX_FLATTENED_LENGTH, MAX_INCLUDE_DEPTH, MAX_INC
 import { SECTION_COMMANDS } from '../core/sections.js'
 import { COMPILERS, DEFAULT_ZIP_DOWNLOAD_TIMEOUT_MS } from '../overleaf/projects.js'
 import { BATCH_UPLOAD_LIMIT } from '../overleaf/sync.js'
+import { MAX_TAG_NAME_LENGTH, MAX_TAG_PROJECT_IDS, TAG_COLOR_PATTERN } from '../overleaf/tags.js'
 import {
   DEFAULT_EXCERPT_CHARS,
   DEFAULT_TRACKED_CHANGE_LIMIT,
@@ -29,6 +30,7 @@ export const OPERATION_NAMES = [
   'import_project_zip',
   'manage_project',
   'update_project_settings',
+  'manage_tags',
   'get_project_tree',
   'read_file',
   'write_file',
@@ -184,6 +186,23 @@ const projectSummarySchema = z.object({
   lastUpdated: z.string().optional(),
   archived: z.boolean(),
   trashed: z.boolean(),
+  tags: z.array(z.object({ id: z.string(), name: z.string() })).optional(),
+})
+
+const tagName = z.string().min(1).max(MAX_TAG_NAME_LENGTH).describe(`Tag name, 1 to ${MAX_TAG_NAME_LENGTH} characters`)
+
+const tagColor = z
+  .string()
+  .regex(new RegExp(TAG_COLOR_PATTERN.source))
+  .describe("#rrggbb, or hsl(H, 70%, 45%) as Overleaf's colour picker writes it")
+
+const tagActionSchema = z.enum(['create', 'edit', 'delete', 'add_projects', 'remove_projects'])
+
+const projectTagSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string().optional(),
+  projectIds: z.array(z.string()),
 })
 
 const projectName = z.string().min(1).max(150).describe('Project name, 1 to 150 characters without slashes')
@@ -283,7 +302,7 @@ export const OPERATIONS = {
   },
   list_projects: {
     description:
-      'List the projects the account can access, newest first by default. Archived and trashed projects are hidden unless includeArchived or includeTrashed is set. Returns projects with id, name, accessLevel, lastUpdated, archived, and trashed, plus totalMatched (before limit) and totalProjects (everything the account can access).',
+      "List the projects the account can access, newest first by default. Archived and trashed projects are hidden unless includeArchived or includeTrashed is set. Returns projects with id, name, accessLevel, lastUpdated, archived, and trashed, plus totalMatched (before limit) and totalProjects (everything the account can access). includeTags adds each project's tags ({ id, name }) and tags, every tag of the account with its id, name, color, and projectCount, empty ones included; use these ids with manage_tags. tag lists only the projects in the tag with that exact name; an unknown name is NOT_FOUND. Tags are the dashboard's own labels for this account; collaborators do not see them.",
     inputSchema: z.object({
       query: z.string().min(1).optional().describe('Case-insensitive substring of the project name'),
       includeArchived: z.boolean().default(false),
@@ -299,11 +318,26 @@ export const OPERATIONS = {
         .enum(['lastUpdated', 'name'])
         .default('lastUpdated')
         .describe('lastUpdated is newest first; name is alphabetical'),
+      includeTags: z
+        .boolean()
+        .default(false)
+        .describe("Add each project's tags and the account's tags; one more request to Overleaf"),
+      tag: z.string().min(1).optional().describe('Exact name of a tag; only its projects are listed'),
     }),
     outputSchema: z.object({
       projects: z.array(projectSummarySchema),
       totalMatched: z.number().int(),
       totalProjects: z.number().int(),
+      tags: z
+        .array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            color: z.string().optional(),
+            projectCount: z.number().int().nonnegative(),
+          })
+        )
+        .optional(),
     }),
     annotations: { readOnlyHint: true },
     effects: ['overleaf-read'],
@@ -382,6 +416,37 @@ export const OPERATIONS = {
     }),
     annotations: { destructiveHint: false, idempotentHint: true },
     effects: ['project-lifecycle', 'overleaf-read'],
+  },
+  manage_tags: {
+    description: `Create, edit, or delete the tags that organize projects on the Overleaf dashboard, or add projects to a tag or remove them. Tags belong to this account; collaborators do not see them. Read tags and their ids with list_projects includeTags. create takes name (unique among the account's tags) and an optional color; edit takes tagId and a new name, color, or both; delete takes tagId and confirmName equal to the tag's current name, else CONFIRMATION_MISMATCH, and removes the tag, never its projects; add_projects and remove_projects take tagId and projectIds, 1 to ${MAX_TAG_PROJECT_IDS} projects this account can access (NOT_FOUND names any other in details.projectIds). A name another tag has is INVALID_ARGUMENT with details.kind tag_name_taken and details.tagId, and an unknown tagId is NOT_FOUND, both before anything is sent. Every change is read back: tag is the result, and verified says whether the read-back confirmed it. A change whose answer was lost is never resent: recoveredAfterTimeout means the read-back showed it applied, and OUTCOME_UNKNOWN means read the tags before acting. Overleaf allows about 30 tag changes of each kind a minute; RATE_LIMITED means wait. Confirm deletes with the user first.`,
+    inputSchema: z.object({
+      action: tagActionSchema,
+      tagId: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('Tag to change, from list_projects includeTags; every action but create'),
+      name: tagName
+        .optional()
+        .describe(`Name for create, or the new name for edit; 1 to ${MAX_TAG_NAME_LENGTH} characters`),
+      color: tagColor.optional(),
+      projectIds: z
+        .array(projectId)
+        .min(1)
+        .max(MAX_TAG_PROJECT_IDS)
+        .optional()
+        .describe(`Projects to add or remove, 1 to ${MAX_TAG_PROJECT_IDS}, for add_projects and remove_projects`),
+      confirmName: z.string().optional().describe("The tag's current name, repeated exactly, for delete"),
+    }),
+    outputSchema: z.object({
+      action: tagActionSchema,
+      tag: projectTagSchema,
+      deleted: z.boolean(),
+      verified: z.boolean(),
+      recoveredAfterTimeout: z.literal(true).optional(),
+    }),
+    annotations: { destructiveHint: true, idempotentHint: false },
+    effects: ['project-lifecycle', 'overleaf-read', 'overleaf-delete'],
   },
   get_project_tree: {
     description:

@@ -195,6 +195,10 @@ in one call.
 - `manage_project` `trash`, `archive`, and `delete` require `confirmName` to exactly equal the
   current project name, else `CONFIRMATION_MISMATCH`. `delete` is refused with `INVALID_ARGUMENT`
   unless the project is already trashed.
+- `manage_tags` `delete` requires `confirmName` to exactly equal the tag's current name, else
+  `CONFIRMATION_MISMATCH`, and removes only the tag, never its projects. Every tag change is checked
+  against a fresh read first and verified by another afterwards; a change whose answer was lost is
+  classified from that read, `recoveredAfterTimeout` or `OUTCOME_UNKNOWN`, and never resent.
 - `update_project_settings` persists in the project itself and reports the settings as re-read
   from a fresh join, never the values it was asked to set. It sends one setting per request and
   never retries; a failure names the settings already stored in `details.applied` and the failed

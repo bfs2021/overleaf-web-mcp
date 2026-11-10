@@ -1,10 +1,10 @@
 # Tool reference
 
-The server registers 34 tools. Names are `snake_case`. Each tool is also
+The server registers 35 tools. Names are `snake_case`. Each tool is also
 `overleaf-web-mcp call <name>` on the [command line](cli.md) and a camelCase method of
 `createOverleafClient` in the [TypeScript SDK](sdk.md), with the same parameters, results, and
 errors. Every tool except `auth_status`,
-`list_projects`, `create_project`, and `import_project_zip` takes a `projectId` from
+`list_projects`, `create_project`, `import_project_zip`, and `manage_tags` takes a `projectId` from
 `list_projects` or from one of the tools that create a project. An id never contains `/`, `\`,
 `.`, `?`, `#`, or `%`; one that does is refused with `INVALID_ARGUMENT` before anything is sent.
 Every tool declares an `outputSchema` and returns its result as `structuredContent`, mirrored as
@@ -60,12 +60,21 @@ List the projects the account can access, newest first by default.
 | `includeTrashed` | no | Include trashed projects; default `false` <!-- md:version 0.2.0 --> |
 | `limit` | no | Maximum projects returned; default 50, at most 200 <!-- md:version 0.2.0 --> |
 | `sort` | no | `lastUpdated` (newest first, the default) or `name` <!-- md:version 0.2.0 --> |
+| `includeTags` | no | Add each project's tags and every tag of the account; default `false`. One more request to Overleaf <!-- md:version 1.1.0 --> |
+| `tag` | no | Exact name of a tag; only its projects are listed <!-- md:version 1.1.0 --> |
 
 Returns `projects`, an array of `{ id, name, accessLevel, lastUpdated, archived, trashed }`,
 plus `totalMatched` (how many passed the filters before `limit`) and `totalProjects` (everything
 the account can access, archived and trashed included). Overleaf returns the whole list in one
 response, so filtering and `limit` happen in the server; there is no server-side pagination to
 expose.
+
+With `includeTags: true`, each project also carries `tags`, `[{ id, name }]`, and the result gains
+`tags`, every tag of the account, empty ones included, as `{ id, name, color?, projectCount }`.
+`projectCount` counts the account's projects in the tag, archived and trashed included. With
+`tag`, only the projects in the tag with that exact, case-sensitive name are listed, still subject
+to the other filters; a name no tag has is `NOT_FOUND`. Tags are the dashboard's labels for this
+account only; collaborators do not see them. Change them with [`manage_tags`](#manage_tags-destructive).
 
 ## Project lifecycle
 
@@ -174,6 +183,45 @@ Settings are sent one request each, in the order Overleaf applies them: `compile
 `retryable` and adds `details.applied` (the settings already stored) and `details.failed` (the
 setting whose request failed); nothing after it was sent. After a `TIMEOUT` the failed setting
 itself may or may not have been stored. Call `get_project_tree` to see the stored values.
+
+### `manage_tags` <small>destructive</small>
+
+<!-- md:version 1.1.0 -->
+
+Create, rename, recolour, or delete the tags that organize projects on the Overleaf dashboard, and
+add projects to a tag or remove them. Tags belong to the account; collaborators do not see them.
+Read them, with their ids, through `list_projects` with `includeTags: true`.
+
+| Parameter | Required | Meaning |
+| --- | :---: | --- |
+| `action` | yes | `create`, `edit`, `delete`, `add_projects`, or `remove_projects` |
+| `tagId` | all but `create` | The tag to change, from `list_projects` |
+| `name` | `create`; or `edit` | The tag's name, 1 to 50 characters and unique among the account's tags; for `edit`, the new name |
+| `color` | no | `#rrggbb`, or `hsl(H, 70%, 45%)` as Overleaf's colour picker writes it; for `create` and `edit` |
+| `projectIds` | `add_projects`, `remove_projects` | 1 to 100 projects the account can access |
+| `confirmName` | `delete` | The tag's current name, repeated exactly |
+
+`edit` takes a new `name`, `color`, or both, and keeps whatever it is not given. `delete` removes
+the tag and never its projects; it needs `confirmName`, else `CONFIRMATION_MISMATCH`.
+
+Returns `action`, `tag` as `{ id, name, color?, projectIds }` (for `delete`, the tag as it was),
+`deleted`, and `verified`. Before anything is sent the tags are read: an unknown `tagId` is
+`NOT_FOUND` with `details.tagId`, a name another tag has is `INVALID_ARGUMENT` with
+`details.kind: "tag_name_taken"` and that tag's `details.tagId`, and a project the account cannot
+access is `NOT_FOUND` with `details.projectIds`. After the change the tags are read again: `tag` is
+what that read shows and `verified` is `true`. When Overleaf accepted the change but the read
+failed, `tag` is what was asked for and `verified` is `false`.
+
+Nothing is retried. A change that timed out or lost its connection is classified from the
+read-back: `recoveredAfterTimeout: true` when it shows the change applied, and `OUTCOME_UNKNOWN`
+otherwise, also when Overleaf accepted a change the read-back does not show. Read the tags before
+acting on either. Overleaf allows about 30 changes of each kind a minute; past that the call fails
+with `RATE_LIMITED`.
+
+With `OVERLEAF_ALLOWED_PROJECTS`, `projectIds` outside the list are `POLICY_DENIED`, a tag's
+`projectIds` show only allowed projects, and `edit` and `delete` are refused with `POLICY_DENIED`
+for a tag that holds a project outside the list. Every action needs the `project-lifecycle` effect;
+`delete` also needs `overleaf-delete`.
 
 ## Projects and files
 

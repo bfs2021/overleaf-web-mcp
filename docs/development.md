@@ -84,7 +84,10 @@ Add `RUN_OVERLEAF_LIVE_REVIEW_TESTS=1` for review reads,
 set its root document, compile it once, and trash it, or
 `RUN_OVERLEAF_LIVE_SYNC_TESTS=1` to create a throwaway project named `mcp-sync-<time>`, mirror a
 temporary local folder into it with `plan_sync` and `sync_directory`, check that a second plan
-finds nothing to do, and trash it.
+finds nothing to do, and trash it, or
+`RUN_OVERLEAF_LIVE_TAG_TESTS=1` to create a throwaway tag named `mcp-tag-<time>`, add the
+project to it, rename and recolour it, remove the project, and delete the tag. The tag is the
+test's own; a failed run deletes it too, and no other tag is touched.
 
 `RUN_OVERLEAF_LIVE_TRACKED_REVIEW_TESTS=1`, with `RUN_OVERLEAF_LIVE_TESTS=1`, needs no project id:
 it runs `test/live/tracked-review-live.test.ts` on a throwaway project it creates, named

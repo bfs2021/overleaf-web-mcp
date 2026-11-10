@@ -8,6 +8,7 @@ import type { HistoryApi } from '../overleaf/history.js'
 import type { ProjectsApi } from '../overleaf/projects.js'
 import type { SectionsApi } from '../overleaf/sections-api.js'
 import type { SyncApi } from '../overleaf/sync.js'
+import type { TagsApi } from '../overleaf/tags.js'
 import type { TrackedChangesApi } from '../overleaf/tracked-changes.js'
 import type { OperationContext } from './context.js'
 import type { OperationInput, OperationName, OperationOutput } from './operations.js'
@@ -40,6 +41,7 @@ export interface OverleafServiceRuntime {
   trackedChanges: Pick<TrackedChangesApi, 'listTrackedChanges' | 'manageTrackedChanges'>
   history: Pick<HistoryApi, 'monitorProjectHistory'>
   sync: Pick<SyncApi, 'planSync' | 'syncDirectory' | 'deleteEntities' | 'batchUpload'>
+  tags: Pick<TagsApi, 'manageTags'>
   /** Checks local paths the service reads itself; without one, only ids are checked. */
   policy?: AccessPolicy
 }

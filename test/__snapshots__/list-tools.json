@@ -53,7 +53,7 @@
   },
   {
     "name": "list_projects",
-    "description": "List the projects the account can access, newest first by default. Archived and trashed projects are hidden unless includeArchived or includeTrashed is set. Returns projects with id, name, accessLevel, lastUpdated, archived, and trashed, plus totalMatched (before limit) and totalProjects (everything the account can access).",
+    "description": "List the projects the account can access, newest first by default. Archived and trashed projects are hidden unless includeArchived or includeTrashed is set. Returns projects with id, name, accessLevel, lastUpdated, archived, and trashed, plus totalMatched (before limit) and totalProjects (everything the account can access). includeTags adds each project's tags ({ id, name }) and tags, every tag of the account with its id, name, color, and projectCount, empty ones included; use these ids with manage_tags. tag lists only the projects in the tag with that exact name; an unknown name is NOT_FOUND. Tags are the dashboard's own labels for this account; collaborators do not see them.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -85,6 +85,16 @@
             "lastUpdated",
             "name"
           ]
+        },
+        "includeTags": {
+          "default": false,
+          "description": "Add each project's tags and the account's tags; one more request to Overleaf",
+          "type": "boolean"
+        },
+        "tag": {
+          "description": "Exact name of a tag; only its projects are listed",
+          "type": "string",
+          "minLength": 1
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema"
@@ -114,6 +124,25 @@
               },
               "trashed": {
                 "type": "boolean"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
@@ -135,6 +164,34 @@
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              },
+              "projectCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "projectCount"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -444,6 +501,123 @@
     "annotations": {
       "destructiveHint": false,
       "idempotentHint": true
+    }
+  },
+  {
+    "name": "manage_tags",
+    "description": "Create, edit, or delete the tags that organize projects on the Overleaf dashboard, or add projects to a tag or remove them. Tags belong to this account; collaborators do not see them. Read tags and their ids with list_projects includeTags. create takes name (unique among the account's tags) and an optional color; edit takes tagId and a new name, color, or both; delete takes tagId and confirmName equal to the tag's current name, else CONFIRMATION_MISMATCH, and removes the tag, never its projects; add_projects and remove_projects take tagId and projectIds, 1 to 100 projects this account can access (NOT_FOUND names any other in details.projectIds). A name another tag has is INVALID_ARGUMENT with details.kind tag_name_taken and details.tagId, and an unknown tagId is NOT_FOUND, both before anything is sent. Every change is read back: tag is the result, and verified says whether the read-back confirmed it. A change whose answer was lost is never resent: recoveredAfterTimeout means the read-back showed it applied, and OUTCOME_UNKNOWN means read the tags before acting. Overleaf allows about 30 tag changes of each kind a minute; RATE_LIMITED means wait. Confirm deletes with the user first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "create",
+            "edit",
+            "delete",
+            "add_projects",
+            "remove_projects"
+          ]
+        },
+        "tagId": {
+          "description": "Tag to change, from list_projects includeTags; every action but create",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "description": "Name for create, or the new name for edit; 1 to 50 characters",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^(#[a-fA-F0-9]{6}|hsl\\(\\d{1,3}, 70%, 45%\\))$",
+          "description": "#rrggbb, or hsl(H, 70%, 45%) as Overleaf's colour picker writes it"
+        },
+        "projectIds": {
+          "description": "Projects to add or remove, 1 to 100, for add_projects and remove_projects",
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Overleaf project ID"
+          }
+        },
+        "confirmName": {
+          "description": "The tag's current name, repeated exactly, for delete",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "$schema": "https://json-schema.org/draft/2020-12/schema"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "create",
+            "edit",
+            "delete",
+            "add_projects",
+            "remove_projects"
+          ]
+        },
+        "tag": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            },
+            "projectIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "projectIds"
+          ],
+          "additionalProperties": false
+        },
+        "deleted": {
+          "type": "boolean"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "recoveredAfterTimeout": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "action",
+        "tag",
+        "deleted",
+        "verified"
+      ],
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false
     }
   },
   {

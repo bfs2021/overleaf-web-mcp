@@ -11,6 +11,7 @@ import { resolveTextContent } from '../core/local-file.js'
 import { AccessPolicy } from '../core/policy.js'
 import type { EntityAction } from '../overleaf/entities.js'
 import type { ProjectAction } from '../overleaf/projects.js'
+import type { TagAction } from '../overleaf/tags.js'
 
 type Implementation<N extends OperationName> = (
   input: OperationInput<N>,
@@ -96,6 +97,21 @@ function manageProjectAction(input: OperationInput<'manage_project'>): ProjectAc
   throw new McpError('INVALID_ARGUMENT', `Missing fields for ${input.action}.`)
 }
 
+function manageTagsAction(input: OperationInput<'manage_tags'>): TagAction {
+  const { action, tagId } = input
+  if (action === 'create' && input.name !== undefined) return { action, name: input.name, color: input.color }
+  if (action !== 'create' && tagId !== undefined) {
+    if (action === 'edit') return { action, tagId, name: input.name, color: input.color }
+    if (action === 'delete' && input.confirmName !== undefined) {
+      return { action, tagId, confirmName: input.confirmName }
+    }
+    if ((action === 'add_projects' || action === 'remove_projects') && input.projectIds !== undefined) {
+      return { action, tagId, projectIds: input.projectIds }
+    }
+  }
+  throw new McpError('INVALID_ARGUMENT', `Missing fields for ${action}.`)
+}
+
 function manageEntityAction(input: OperationInput<'manage_entity'>): EntityAction {
   if (input.action === 'create_folder') return { action: input.action, path: input.path }
   if (input.action === 'rename' && input.newName !== undefined) {
@@ -150,6 +166,7 @@ export function createOverleafService(runtime: OverleafServiceRuntime): Overleaf
           spellCheckLanguage: input.spellCheckLanguage,
         })
     ),
+    manage_tags: operation('manage_tags', async input => await runtime.tags.manageTags(manageTagsAction(input))),
     get_project_tree: operation(
       'get_project_tree',
       async input => await runtime.entities.getProjectTree(input.projectId)

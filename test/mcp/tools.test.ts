@@ -55,6 +55,7 @@ function fakeRuntime() {
     trackedChanges: { listTrackedChanges: vi.fn(), manageTrackedChanges: vi.fn() },
     history: { monitorProjectHistory: vi.fn() },
     sync: { planSync: vi.fn(), syncDirectory: vi.fn(), deleteEntities: vi.fn(), batchUpload: vi.fn() },
+    tags: { manageTags: vi.fn() },
   }
 }
 
@@ -338,6 +339,49 @@ describe('MCP tool registration', () => {
 
     await manage({ projectId: 'p', action: 'restore' })
     expect(runtime.projects.manageProject).toHaveBeenCalledWith('p', { action: 'restore' })
+  })
+
+  test('shapes each manage_tags action and refuses one with missing fields before calling the runtime', async () => {
+    const runtime = fakeRuntime()
+    runtime.tags.manageTags.mockResolvedValue({
+      action: 'delete',
+      tag: { id: 't', name: 'Thesis', projectIds: [] },
+      deleted: true,
+      verified: true,
+    })
+    const registered = new Map<string, (...args: any[]) => any>()
+    registerOverleafTools(
+      {
+        registerTool: (name: string, _config: any, handler: (...args: any[]) => any) => {
+          registered.set(name, handler)
+        },
+      },
+      runtime
+    )
+    const manage = registered.get('manage_tags')!
+
+    for (const input of [
+      { action: 'create' },
+      { action: 'delete', tagId: 't' },
+      { action: 'add_projects', tagId: 't' },
+      { action: 'edit', name: 'No id' },
+    ]) {
+      const missing = await manage(input)
+      expect(JSON.parse(missing.content[0].text), input.action).toMatchObject({ code: 'INVALID_ARGUMENT' })
+    }
+    expect(runtime.tags.manageTags).not.toHaveBeenCalled()
+
+    const deleted = await manage({ action: 'delete', tagId: 't', confirmName: 'Thesis', name: 'ignored' })
+    expect(runtime.tags.manageTags).toHaveBeenLastCalledWith({ action: 'delete', tagId: 't', confirmName: 'Thesis' })
+    expect(deleted.structuredContent).toMatchObject({ action: 'delete', deleted: true })
+    await manage({ action: 'remove_projects', tagId: 't', projectIds: ['p'] })
+    expect(runtime.tags.manageTags).toHaveBeenLastCalledWith({
+      action: 'remove_projects',
+      tagId: 't',
+      projectIds: ['p'],
+    })
+    await manage({ action: 'create', name: 'Grant', color: '#000000' })
+    expect(runtime.tags.manageTags).toHaveBeenLastCalledWith({ action: 'create', name: 'Grant', color: '#000000' })
   })
 
   test('forwards every project setting and the creation arguments unchanged', async () => {

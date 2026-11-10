@@ -10,6 +10,7 @@ export const INPUTS: Record<OperationName, Record<string, unknown>> = {
   clone_project: { sourceProjectId: 's', name: 'Copy' },
   import_project_zip: { localZipPath: '/tmp/paper.zip' },
   manage_project: { projectId: 'p', action: 'trash', confirmName: 'Paper' },
+  manage_tags: { action: 'add_projects', tagId: 't1', projectIds: ['p'] },
   update_project_settings: { projectId: 'p', compiler: 'xelatex' },
   get_project_tree: { projectId: 'p' },
   read_file: { projectId: 'p', filePath: 'main.tex' },

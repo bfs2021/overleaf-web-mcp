@@ -34,6 +34,30 @@ unexpected shape surfaces as `PROTOCOL_UNSUPPORTED` rather than a parse exceptio
 
 The capitalised `/Project/` prefix is Overleaf's own; both spellings are live routes.
 
+## Tags
+
+Confirmed in `services/web` `app/src/router.mjs`, `Features/Tags/TagsController.mjs`,
+`TagsHandler.mjs`, and `models/Tag.mjs`. Every tag route needs a signed-in session and is
+rate-limited to 30 requests a minute each. Tags belong to the signed-in user.
+
+| Method and route | Sent | Read | Used by |
+| --- | --- | --- | --- |
+| `GET /tag` | nothing | `[{ _id, name, color?, project_ids }]` (validated; `user_id` and `__v` are ignored) | `list_projects` with `includeTags` or `tag`, and the checks before and after every `manage_tags` change |
+| `POST /tag` | `{ name, color? }` | the created tag's `_id`; the read-back finds it by name | `manage_tags` `create` |
+| `POST /tag/:tagId/edit` | `{ name, color? }` | nothing (204) | `manage_tags` `edit` |
+| `DELETE /tag/:tagId` | nothing | nothing (204) | `manage_tags` `delete` |
+| `POST /tag/:tagId/projects` | `{ projectIds }` | nothing (204) | `manage_tags` `add_projects` |
+| `POST /tag/:tagId/projects/remove` | `{ projectIds }` | nothing (204) | `manage_tags` `remove_projects` |
+
+Names are at most 50 characters (`MAX_TAG_LENGTH`). A colour must match `TAG_COLOR_REGEX`:
+`#rrggbb` or `hsl(<h>, 70%, 45%)`. `edit` stores the colour it is given, so leaving `color` out
+would clear it; the server sends the current colour again. Every change route answers 204 even
+when no tag of the user matched, and `add_projects` files any project id without checking access,
+so the server reads the tags first, checks the tag and each project, and reads them again
+afterwards. `POST /tag` with a name the user already has returns the existing tag; the server
+refuses the duplicate before sending it. `POST /api/project` carries no tags; the dashboard reads
+them from its page, and this server from `GET /tag`.
+
 Overleaf builds the zip archive while it streams it, with no `Content-Length`, so a transfer cut
 short arrives with HTTP 200; only the missing end record shows it. A file Overleaf fails to read
 while building the archive is left out without an error.

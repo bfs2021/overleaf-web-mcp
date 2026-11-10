@@ -92,4 +92,49 @@ describe('account API', () => {
 
     await expect(account.listProjects()).resolves.toMatchObject({ totalMatched: 1, totalProjects: 1 })
   })
+
+  describe('tags', () => {
+    const tags = [
+      { id: 't1', name: 'Thesis', color: '#336699', projectIds: ['a', 'c', 'gone'] },
+      { id: 't2', name: 'Empty', projectIds: [] },
+    ]
+
+    test('reads no tags unless asked', async () => {
+      const listTags = vi.fn(async () => tags)
+      const account = new AccountApi({ postJson: vi.fn(async () => ({ projects })) }, undefined, listTags)
+      const listing = await account.listProjects()
+      expect(listTags).not.toHaveBeenCalled()
+      expect(listing).not.toHaveProperty('tags')
+      expect(listing.projects[0]).not.toHaveProperty('tags')
+    })
+
+    test("adds each project's tags and every tag with how many listed projects it holds", async () => {
+      const account = new AccountApi({ postJson: vi.fn(async () => ({ projects })) }, undefined, async () => tags)
+      const listing = await account.listProjects({ includeTags: true })
+      expect(listing.projects.map(project => [project.id, project.tags])).toEqual([
+        ['a', [{ id: 't1', name: 'Thesis' }]],
+        ['b', []],
+        ['e', []],
+      ])
+      // 'c' is archived but still the account's; 'gone' is not, so it is not counted.
+      expect(listing.tags).toEqual([
+        { id: 't1', name: 'Thesis', color: '#336699', projectCount: 2 },
+        { id: 't2', name: 'Empty', projectCount: 0 },
+      ])
+    })
+
+    test('lists only the projects in the tag with that exact name', async () => {
+      const account = new AccountApi({ postJson: vi.fn(async () => ({ projects })) }, undefined, async () => tags)
+      const listing = await account.listProjects({ tag: 'Thesis', includeArchived: true })
+      expect(listing.projects.map(project => project.id)).toEqual(['c', 'a'])
+      expect(listing.totalMatched).toBe(2)
+      expect(listing).not.toHaveProperty('tags')
+      await expect(account.listProjects({ tag: 'thesis' })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    })
+
+    test('refuses tags on a backend that cannot read them', async () => {
+      const account = new AccountApi({ postJson: vi.fn(async () => ({ projects })) })
+      await expect(account.listProjects({ includeTags: true })).rejects.toMatchObject({ code: 'PROTOCOL_UNSUPPORTED' })
+    })
+  })
 })

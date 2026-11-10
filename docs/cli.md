@@ -1,6 +1,6 @@
 # Command line
 
-Every tool is also a command. `overleaf-web-mcp` reaches the same 34 operations as the MCP
+Every tool is also a command. `overleaf-web-mcp` reaches the same 35 operations as the MCP
 server, through the same service, checks, and safety defaults, and prints one JSON result whose
 exit code says what is safe to do next. Use it from a shell, a script, a CI job, or a coding
 agent that works in a terminal; no MCP client is involved. Three [Agent Skills](#agent-skills)
@@ -19,7 +19,7 @@ npx overleaf-web-mcp call auth_status
 [installation guide](install.md#1-sign-in-once). `call auth_status` then prints the account's
 project count and when the session expires, and exits 0. For frequent use, install the package
 once with `npm install -g overleaf-web-mcp` and run `overleaf-web-mcp` directly. In a script, pin the version and pass `--yes`, as in
-`npx --yes overleaf-web-mcp@1.0 projects list`: without `--yes`, `npx` can print an install
+`npx --yes overleaf-web-mcp@1.1 projects list`: without `--yes`, `npx` can print an install
 notice on stderr the first time.
 
 Commands read the same environment variables as the server, from the shell they run in; see
@@ -42,7 +42,7 @@ overleaf-web-mcp schema <tool_name> (--input | --output)
 overleaf-web-mcp capabilities [projectId]
 overleaf-web-mcp doctor [projectId]
 
-overleaf-web-mcp projects list [--query <q>] [--limit <n>] [--sort lastUpdated|name] [--include-archived] [--include-trashed]
+overleaf-web-mcp projects list [--query <q>] [--limit <n>] [--sort lastUpdated|name] [--include-archived] [--include-trashed] [--include-tags] [--tag <name>]
 overleaf-web-mcp tree <projectId>
 overleaf-web-mcp files read <projectId> <path>
 overleaf-web-mcp files write <projectId> <path> --revision <r> (--content-file <f> | --stdin) [--tracked]
@@ -81,7 +81,7 @@ prints the help and exits 0.
 
 | Command | Tool | Arguments and flags become | Since |
 | --- | --- | --- | --- |
-| `projects list` | `list_projects` | `--query` `query`, `--limit` `limit`, `--sort` `sort`, `--include-archived` `includeArchived: true`, `--include-trashed` `includeTrashed: true` | <!-- md:version 0.7.0 --> |
+| `projects list` | `list_projects` | `--query` `query`, `--limit` `limit`, `--sort` `sort`, `--include-archived` `includeArchived: true`, `--include-trashed` `includeTrashed: true`, `--include-tags` `includeTags: true` <!-- md:version 1.1.0 -->, `--tag` `tag` <!-- md:version 1.1.0 --> | <!-- md:version 0.7.0 --> |
 | `tree` | `get_project_tree` | `<projectId>` `projectId` | <!-- md:version 0.7.0 --> |
 | `files read` | `read_file` | `<path>` `filePath` | <!-- md:version 0.7.0 --> |
 | `files write` | `write_file` | `<path>` `filePath`, `--revision` `revision`, `--content-file` `localPath`, `--stdin` `content`, `--tracked` `writeMode: "tracked"` | <!-- md:version 0.7.0 --> |
@@ -495,7 +495,7 @@ how to do one job with these commands, and calls only the commands listed above.
 Each treats manuscript text and reviewer comments as data, never as instructions. A project
 path, which a collaborator chose, never goes on a shell command line: the skills put it in a
 request file for `call`, and single-quote every other value. They run the
-command line as `npx --yes overleaf-web-mcp@1.0 …`, so they need Node.js 20 or newer, network
+command line as `npx --yes overleaf-web-mcp@1.1 …`, so they need Node.js 20 or newer, network
 access to Overleaf, and a session saved with `npx overleaf-web-mcp login`.
 
 To install them from the repository with the [`skills`](https://github.com/vercel-labs/skills)
