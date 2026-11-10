@@ -37,8 +37,9 @@ The capitalised `/Project/` prefix is Overleaf's own; both spellings are live ro
 ## Tags
 
 Confirmed in `services/web` `app/src/router.mjs`, `Features/Tags/TagsController.mjs`,
-`TagsHandler.mjs`, and `models/Tag.mjs`. Every tag route needs a signed-in session and is
-rate-limited to 30 requests a minute each. Tags belong to the signed-in user.
+`TagsHandler.mjs`, and `models/Tag.mjs`. Every tag route needs a signed-in session, and tags
+belong to the signed-in user. Each change route is rate-limited to 30 requests a minute;
+`POST /tag/:tagId/edit` shares its limiter with `POST /tag/:tagId/rename`, and `GET /tag` has none.
 
 | Method and route | Sent | Read | Used by |
 | --- | --- | --- | --- |

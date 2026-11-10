@@ -282,7 +282,7 @@ export class TagsApi {
         false
       )
     }
-    throw this.#unknown(failure)
+    throw this.#unknown(failure, undefined, after === undefined)
   }
 
   async #apply(
@@ -337,18 +337,18 @@ export class TagsApi {
     }
   }
 
-  #unknown(failure: McpError | undefined, readFailure?: McpError): McpError {
-    return new McpError(
-      'OUTCOME_UNKNOWN',
-      failure === undefined
-        ? 'Overleaf accepted the tag change, but reading the tags back did not show it, perhaps because another change came in between. Read the tags with list_projects includeTags before acting; do not repeat the change blindly.'
-        : 'The tag change got no clear answer from Overleaf and the tags read back do not show it applied; it may still apply. Read the tags with list_projects includeTags before acting; it was not resent.',
-      {
-        retryable: false,
-        details: { outcome: 'unknown', ...(readFailure === undefined ? {} : { readBack: readFailure.code }) },
-        ...(failure === undefined ? {} : { cause: failure }),
-      }
-    )
+  #unknown(failure: McpError | undefined, readFailure?: McpError, readFailed = false): McpError {
+    const message =
+      failure !== undefined
+        ? 'The tag change got no clear answer from Overleaf and the tags read back do not show it applied; it may still apply. Read the tags with list_projects includeTags before acting; it was not resent.'
+        : readFailed
+          ? 'Overleaf accepted the tag change, but its answer named no tag and the tags could not be read back. Read the tags with list_projects includeTags before acting; do not repeat the change blindly.'
+          : 'Overleaf accepted the tag change, but reading the tags back did not show it, perhaps because another change came in between. Read the tags with list_projects includeTags before acting; do not repeat the change blindly.'
+    return new McpError('OUTCOME_UNKNOWN', message, {
+      retryable: false,
+      details: { outcome: 'unknown', ...(readFailure === undefined ? {} : { readBack: readFailure.code }) },
+      ...(failure === undefined ? {} : { cause: failure }),
+    })
   }
 
   #nameTaken(taken: StoredTag): McpError {

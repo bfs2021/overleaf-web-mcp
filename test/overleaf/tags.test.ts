@@ -32,7 +32,7 @@ function fakeOverleaf(initial: RawTag[]) {
       if (path !== '/tag') throw new Error(`unexpected GET ${path}`)
       return structuredClone(tags.map(tag => ({ ...tag, user_id: 'user', __v: 0 })))
     }),
-    postJson: vi.fn(async (path: string, body?: unknown) => {
+    postJson: vi.fn(async (path: string, body?: unknown): Promise<unknown> => {
       writes.push(`POST ${path}`)
       const input = body as { name?: string; color?: string; projectIds?: string[] }
       if (path === '/tag') {
@@ -261,6 +261,57 @@ describe('tags API', () => {
       deleted: false,
       verified: false,
     })
+  })
+
+  test('returns an accepted create unverified, with the id Overleaf gave, when the tags cannot be read again', async () => {
+    const { api, http } = tagsApi([])
+    http.getJson.mockImplementationOnce(async () => [])
+    http.getJson.mockRejectedValueOnce(new McpError('TIMEOUT', 'timed out', { retryable: true }))
+    expect(await api.manageTags({ action: 'create', name: 'Grant' })).toEqual({
+      action: 'create',
+      tag: { id: ID(10), name: 'Grant', projectIds: [] },
+      deleted: false,
+      verified: false,
+    })
+  })
+
+  test('reports an accepted create the read-back does not show as OUTCOME_UNKNOWN', async () => {
+    const { api, http } = tagsApi([])
+    http.postJson.mockResolvedValueOnce({ _id: ID(8), name: 'Grant' })
+    const error = await failure(api.manageTags({ action: 'create', name: 'Grant' }))
+    expect(error.code).toBe('OUTCOME_UNKNOWN')
+    expect(error.message).toMatch(/did not show it/u)
+  })
+
+  test('says so when an accepted create named no tag and the tags could not be read', async () => {
+    const { api, http } = tagsApi([])
+    http.postJson.mockResolvedValueOnce({})
+    http.getJson.mockImplementationOnce(async () => [])
+    http.getJson.mockRejectedValueOnce(new McpError('TIMEOUT', 'timed out', { retryable: true }))
+    const error = await failure(api.manageTags({ action: 'create', name: 'Grant' }))
+    expect(error.code).toBe('OUTCOME_UNKNOWN')
+    expect(error.message).toMatch(/could not be read back/u)
+  })
+
+  test('reads back after an HTTP 5xx, which may have applied, and never resends', async () => {
+    const { api, http, tags } = tagsApi([thesis])
+    http.postJson.mockImplementationOnce(async () => {
+      tags[0]!.name = 'Other'
+      throw new McpError('REMOTE_ERROR', 'HTTP 502', { details: { status: 502, path: '/tag' } })
+    })
+    const result = await api.manageTags({ action: 'edit', tagId: THESIS, name: 'Other' })
+    expect(result).toMatchObject({ verified: true, recoveredAfterTimeout: true, tag: { name: 'Other' } })
+    expect(http.postJson).toHaveBeenCalledTimes(1)
+  })
+
+  test('names the read-back failure when both the change and the read-back failed', async () => {
+    const { api, http } = tagsApi([thesis])
+    http.postJson.mockRejectedValueOnce(new McpError('TIMEOUT', 'timed out', { retryable: true }))
+    http.getJson.mockImplementationOnce(async () => [{ ...thesis, user_id: 'user' }])
+    http.getJson.mockRejectedValueOnce(new McpError('AUTH_EXPIRED', 'expired'))
+    const error = await failure(api.manageTags({ action: 'add_projects', tagId: THESIS, projectIds: [P2] }))
+    expect(error.code).toBe('OUTCOME_UNKNOWN')
+    expect(error.details).toEqual({ outcome: 'unknown', readBack: 'AUTH_EXPIRED' })
   })
 
   describe('with an access policy', () => {
